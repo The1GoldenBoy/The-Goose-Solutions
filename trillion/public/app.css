@@ -2,16 +2,17 @@
    magenta contrôlé, glassmorphism premium, particules cosmiques.
    More supercomputer than dashboard. More magical intelligence than software. */
 :root {
-  --bg: #05030d;
-  --bg2: #0a0618;
-  --panel: rgba(22, 14, 46, 0.55);
-  --panel-border: rgba(139, 92, 246, 0.22);
+  --bg: #0d0620;
+  --bg2: #170b38;
+  --panel: rgba(46, 22, 92, 0.42);
+  --panel-border: rgba(168, 85, 247, 0.4);
   --indigo: #4f46e5;
-  --violet: #8b5cf6;
-  --electric: #38bdf8;
-  --magenta: #d946ef;
-  --text: #ece9ff;
-  --muted: #a89fd8;
+  --violet: #a855f7;
+  --violet-deep: #7c3aed;
+  --electric: #60a5fa;
+  --magenta: #e879f9;
+  --text: #f3edff;
+  --muted: #b8a8e8;
   --good: #34d399;
   --warn: #fbbf24;
 }
@@ -20,9 +21,10 @@ html, body { height: 100%; }
 body {
   margin: 0;
   font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
-  background: radial-gradient(1200px 800px at 70% -10%, #1b1040 0%, var(--bg) 55%),
-              radial-gradient(900px 600px at 10% 110%, #14082e 0%, transparent 60%),
-              var(--bg);
+  background: radial-gradient(1300px 900px at 50% -15%, #321262 0%, transparent 55%),
+              radial-gradient(1000px 700px at 85% 110%, #2a0e55 0%, transparent 60%),
+              radial-gradient(800px 600px at 8% 100%, #1f0a44 0%, transparent 55%),
+              linear-gradient(180deg, #120829 0%, var(--bg) 100%);
   color: var(--text);
   overflow: hidden;
 }
@@ -69,7 +71,17 @@ body {
   transition: all .25s;
 }
 .add-btn:hover { background: rgba(139,92,246,0.3); box-shadow: 0 0 20px rgba(139,92,246,0.4); }
-.sidebar-foot { text-align: center; }
+.sidebar-foot { text-align: center; display: flex; flex-direction: column; gap: 7px; align-items: center; }
+.founder-pill {
+  font-size: 10.5px; letter-spacing: 1.5px; padding: 5px 14px; border-radius: 999px;
+  color: var(--magenta); border: 1px solid rgba(232,121,249,0.5);
+  background: rgba(232,121,249,0.08); box-shadow: 0 0 14px rgba(232,121,249,0.25);
+}
+.tagline {
+  position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 2;
+  font-size: 10px; letter-spacing: 4px; color: rgba(184,168,232,0.55); text-transform: uppercase;
+  pointer-events: none;
+}
 .empire-btn {
   padding: 9px 12px; border-radius: 12px; cursor: pointer; font-size: 12.5px; text-align: left;
   color: var(--text); background: rgba(56,189,248,0.08);
@@ -104,15 +116,23 @@ main { flex: 1; overflow-y: auto; padding: 26px 30px; }
   display: grid; place-items: center;
 }
 .presence.small { width: 74px; height: 74px; margin: 0; }
+/* Le cristal Trillion — cœur lumineux du look (référence VELOURA §18) */
 .presence-core {
-  position: absolute; width: 58%; height: 58%; border-radius: 50%;
-  background: radial-gradient(circle at 38% 32%, #c4b5fd 0%, var(--violet) 35%, var(--indigo) 65%, #1e1b4b 100%);
-  box-shadow: 0 0 60px rgba(139,92,246,0.8), 0 0 140px rgba(56,189,248,0.35), inset 0 0 40px rgba(217,70,239,0.5);
+  position: absolute; width: 46%; height: 86%;
+  clip-path: polygon(50% 0%, 82% 26%, 66% 86%, 50% 100%, 34% 86%, 18% 26%);
+  background:
+    linear-gradient(160deg, rgba(240,230,255,0.95) 0%, #c084fc 22%, var(--violet-deep) 55%, #4c1d95 85%, #2e1065 100%);
+  filter: drop-shadow(0 0 26px rgba(168,85,247,0.95)) drop-shadow(0 0 80px rgba(217,70,239,0.5));
   animation: breathe 5s ease-in-out infinite;
 }
+.presence-core::after {
+  content: ""; position: absolute; inset: 0;
+  clip-path: polygon(50% 0%, 66% 86%, 50% 100%, 34% 86%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(192,132,252,0.15) 60%, transparent);
+}
 .presence-ring { position: absolute; border-radius: 50%; border: 1px solid; }
-.presence-ring.r1 { width: 84%; height: 84%; border-color: rgba(139,92,246,0.45); animation: spin 14s linear infinite; border-style: dashed; }
-.presence-ring.r2 { width: 100%; height: 100%; border-color: rgba(56,189,248,0.25); animation: spin 26s linear infinite reverse; }
+.presence-ring.r1 { width: 108%; height: 30%; bottom: -4%; border-color: rgba(168,85,247,0.55); animation: spin 14s linear infinite; border-style: dashed; transform: rotateX(70deg); }
+.presence-ring.r2 { width: 130%; height: 36%; bottom: -8%; border-color: rgba(232,121,249,0.3); box-shadow: 0 0 30px rgba(168,85,247,0.35); transform: rotateX(70deg); }
 #presence-img {
   position: absolute; width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
   box-shadow: 0 0 70px rgba(139,92,246,0.75), 0 0 160px rgba(217,70,239,0.3);
@@ -129,7 +149,7 @@ main { flex: 1; overflow-y: auto; padding: 26px 30px; }
   border: 1px solid var(--panel-border);
   border-radius: 18px;
   backdrop-filter: blur(20px);
-  box-shadow: 0 8px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+  box-shadow: 0 0 22px rgba(124,58,237,0.18), 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 0 30px rgba(124,58,237,0.08);
 }
 .welcome-chat { max-width: 680px; margin: 0 auto 14px; display: flex; flex-direction: column; gap: 10px; }
 .composer { max-width: 680px; margin: 0 auto; padding: 12px; }
@@ -141,13 +161,14 @@ main { flex: 1; overflow-y: auto; padding: 26px 30px; }
 .composer textarea::placeholder { color: rgba(168,159,216,0.65); font-style: italic; }
 .composer-row { display: flex; justify-content: flex-end; gap: 10px; align-items: center; }
 .send-btn {
-  padding: 9px 26px; border-radius: 999px; border: none; cursor: pointer;
-  font-weight: 700; font-size: 13.5px; letter-spacing: .5px; color: white;
-  background: linear-gradient(120deg, var(--indigo), var(--violet), var(--magenta));
-  box-shadow: 0 0 22px rgba(139,92,246,0.55);
+  padding: 10px 28px; border-radius: 14px; cursor: pointer;
+  font-weight: 700; font-size: 13.5px; letter-spacing: 2px; text-transform: uppercase; color: white;
+  background: linear-gradient(120deg, var(--violet-deep), var(--violet) 55%, var(--magenta));
+  border: 1px solid rgba(232,121,249,0.6);
+  box-shadow: 0 0 26px rgba(168,85,247,0.65), inset 0 0 14px rgba(255,255,255,0.15);
   transition: all .25s;
 }
-.send-btn:hover { box-shadow: 0 0 34px rgba(217,70,239,0.65); transform: translateY(-1px); }
+.send-btn:hover { box-shadow: 0 0 44px rgba(232,121,249,0.8), inset 0 0 18px rgba(255,255,255,0.2); transform: translateY(-1px); }
 .icon-btn {
   width: 38px; height: 38px; border-radius: 50%; cursor: pointer; font-size: 16px;
   background: rgba(255,255,255,0.05); border: 1px solid var(--panel-border); color: var(--text);
