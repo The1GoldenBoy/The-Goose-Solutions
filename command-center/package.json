@@ -1,0 +1,19 @@
+{
+  "name": "goose-command-center",
+  "version": "1.0.0",
+  "description": "Command Center — OS multi-agents du Super App Master Plan (Office, Factory, Meeting Room, Watchdog, Mémoire)",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs",
+    "demo": "node bin/demo.mjs",
+    "report": "node bin/goosectl.mjs report",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
