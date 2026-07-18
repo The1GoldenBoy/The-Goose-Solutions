@@ -9,7 +9,7 @@
   --indigo: #4f46e5;
   --violet: #a855f7;
   --violet-deep: #7c3aed;
-  --electric: #60a5fa;
+  --electric: #c084fc;
   --magenta: #e879f9;
   --text: #f3edff;
   --muted: #b8a8e8;
@@ -87,7 +87,7 @@ body {
   color: var(--text); background: rgba(56,189,248,0.08);
   border: 1px solid rgba(56,189,248,0.3); transition: all .25s;
 }
-.empire-btn:hover { box-shadow: 0 0 16px rgba(56,189,248,0.35); }
+.empire-btn:hover { box-shadow: 0 0 16px rgba(168,85,247,0.4); }
 .health-ok { color: var(--good); }
 .health-attention { color: var(--warn); }
 .pnl-big { font-size: 34px; font-weight: 800; letter-spacing: .5px; }
@@ -239,14 +239,20 @@ main { flex: 1; overflow-y: auto; padding: 26px 30px; }
 .ghost-btn:hover { color: var(--text); border-color: var(--violet); box-shadow: 0 0 16px rgba(139,92,246,0.3); }
 
 .msg { padding: 11px 15px; border-radius: 14px; font-size: 13.8px; line-height: 1.55; white-space: pre-wrap; animation: rise .35s ease; }
-.msg.user { align-self: flex-end; background: rgba(79,70,229,0.32); border: 1px solid rgba(79,70,229,0.5); max-width: 85%; }
-.msg.trillion { align-self: flex-start; background: var(--panel); border: 1px solid var(--panel-border); max-width: 92%; }
+.msg.user { align-self: flex-end; background: rgba(124,58,237,0.28); border: 1px solid rgba(168,85,247,0.5); max-width: 85%; }
+.msg.trillion { align-self: flex-start; background: var(--panel); border: 1px solid var(--panel-border); max-width: 92%; position: relative; padding-left: 56px; box-shadow: 0 0 18px rgba(124,58,237,0.15); }
+.msg.trillion::after {
+  content: ""; position: absolute; left: 12px; top: 12px; width: 34px; height: 34px; border-radius: 50%;
+  background: url(/assets/trillion-portrait.webp) center 12%/cover;
+  border: 1px solid rgba(232,121,249,0.55); box-shadow: 0 0 12px rgba(168,85,247,0.55);
+}
 .msg.trillion::before { content: "✦ Trillion"; display: block; font-size: 10px; letter-spacing: 2px; color: var(--magenta); margin-bottom: 5px; }
 .msg .launch-btn {
   display: inline-block; margin-top: 10px; padding: 9px 22px; cursor: pointer;
-  border-radius: 999px; border: none; font-weight: 700; color: white; font-size: 13px;
-  background: linear-gradient(120deg, var(--electric), var(--violet));
-  box-shadow: 0 0 20px rgba(56,189,248,0.5);
+  border-radius: 14px; border: 1px solid rgba(232,121,249,0.6); font-weight: 700; color: white; font-size: 12.5px;
+  letter-spacing: 2px; text-transform: uppercase;
+  background: linear-gradient(120deg, var(--violet-deep), var(--violet) 55%, var(--magenta));
+  box-shadow: 0 0 22px rgba(168,85,247,0.6), inset 0 0 12px rgba(255,255,255,0.12);
 }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
@@ -256,23 +262,33 @@ main { flex: 1; overflow-y: auto; padding: 26px 30px; }
 .building-steps { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--muted); font-family: ui-monospace, monospace; }
 .building-steps .step { opacity: 0; animation: rise .4s ease forwards; }
 .building-steps .step.done::before { content: "✦ "; color: var(--good); }
-.building-steps .step.now::before { content: "◌ "; color: var(--electric); }
+.building-steps .step.now::before { content: "◌ "; color: var(--magenta); }
 
 /* ---- Dashboard ---- */
 .dash-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; margin-bottom: 16px; }
-.dash-head h2 { margin: 0 0 4px; font-size: 20px; }
+.dash-head h2 { margin: 0 0 4px; font-size: 19px; letter-spacing: 3px; text-transform: uppercase; text-shadow: 0 0 18px rgba(168,85,247,0.5); }
 .period-picker { display: flex; gap: 4px; }
 .period-picker button {
-  padding: 6px 13px; font-size: 12px; cursor: pointer; border-radius: 999px;
-  background: transparent; color: var(--muted); border: 1px solid transparent;
+  padding: 6px 14px; font-size: 11.5px; cursor: pointer; border-radius: 10px; letter-spacing: .5px;
+  background: rgba(168,85,247,0.06); color: var(--muted); border: 1px solid rgba(168,85,247,0.25);
+  transition: all .2s;
 }
-.period-picker button.active { color: var(--text); border-color: var(--violet); background: rgba(139,92,246,0.18); }
+.period-picker button:hover { color: var(--text); border-color: rgba(232,121,249,0.5); }
+.period-picker button.active {
+  color: white; border-color: rgba(232,121,249,0.65); background: rgba(124,58,237,0.35);
+  box-shadow: 0 0 14px rgba(168,85,247,0.45);
+}
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; padding-bottom: 60px; }
 .panel { padding: 16px 18px; animation: rise .5s ease; min-height: 130px; }
 .panel.large { grid-column: span 2; }
-.panel h3 { margin: 0 0 10px; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
-.panel h3 .glyph { color: var(--violet); font-size: 15px; }
+.panel h3 {
+  margin: 0 0 10px; font-size: 11.5px; letter-spacing: 2.5px; text-transform: uppercase;
+  color: var(--muted); display: flex; align-items: center; gap: 8px; padding-bottom: 8px;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, rgba(168,85,247,0.45), transparent) 1;
+}
+.panel h3 .glyph { color: var(--magenta); font-size: 15px; text-shadow: 0 0 10px rgba(232,121,249,0.7); }
 .panel .line { font-size: 13px; color: rgba(236,233,255,0.88); padding: 5px 0; border-bottom: 1px solid rgba(139,92,246,0.1); }
 .panel .line small { color: var(--muted); }
 .panel .empty { font-size: 12.5px; color: var(--muted); font-style: italic; line-height: 1.6; }
@@ -283,10 +299,10 @@ main { flex: 1; overflow-y: auto; padding: 26px 30px; }
 .quick-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
 .qa-chip {
   font-size: 11.5px; padding: 6px 13px; cursor: pointer; border-radius: 999px;
-  color: var(--muted); background: rgba(255,255,255,0.04); border: 1px solid var(--panel-border);
+  color: var(--muted); background: rgba(168,85,247,0.07); border: 1px solid rgba(168,85,247,0.3);
   transition: all .2s;
 }
-.qa-chip:hover { color: var(--text); border-color: var(--electric); }
+.qa-chip:hover { color: white; border-color: var(--magenta); box-shadow: 0 0 12px rgba(232,121,249,0.4); }
 .comm-composer { display: flex; gap: 9px; align-items: flex-end; }
 .comm-composer textarea {
   flex: 1; resize: none; min-height: 44px; max-height: 140px; padding: 11px 14px;
