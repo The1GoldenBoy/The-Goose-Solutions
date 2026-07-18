@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Goose Command Center</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🪿 <strong>Goose Command Center</strong></div>
+    <nav class="tabs" id="tabs">
+      <button data-view="meeting">Meeting Room</button>
+      <button data-view="office">Office</button>
+      <button data-view="factory">Factory</button>
+      <button data-view="watchdog">Watchdog</button>
+      <button data-view="memory">Mémoire</button>
+    </nav>
+    <div class="topbar-right">
+      <span class="pill" id="director-pill">Directeur : —</span>
+      <span class="pill" id="live-pill">● live</span>
+      <label class="pill actor-pill">Agir comme
+        <select id="actor"></select>
+      </label>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="view-meeting" class="view"></section>
+    <section id="view-office" class="view"></section>
+    <section id="view-factory" class="view"></section>
+    <section id="view-watchdog" class="view"></section>
+    <section id="view-memory" class="view"></section>
+  </main>
+
+  <dialog id="task-dialog"></dialog>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+# Données runtime — la source de vérité vit chez Max, pas dans git.
+state/
+reports/
+archive/
+node_modules/

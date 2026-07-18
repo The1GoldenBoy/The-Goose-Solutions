@@ -1,0 +1,20 @@
+{
+  "name": "trillion",
+  "version": "1.0.0",
+  "description": "Trillion — command center vivant : ajoute une entreprise, donne son Masterplan à Trillion, elle construit le cockpit.",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.70.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

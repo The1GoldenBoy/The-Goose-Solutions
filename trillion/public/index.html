@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TRILLION</title>
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <canvas id="cosmos"></canvas>
+
+  <div class="shell">
+    <aside class="rail">
+      <button class="rail-btn" id="rail-home" title="Empire Overview">⌂</button>
+      <button class="rail-btn active" id="rail-new" title="Add a business">✦</button>
+      <button class="rail-btn" id="rail-crown" title="Founder Mode">♛</button>
+      <div class="rail-spacer"></div>
+      <div class="rail-pro">PRO</div>
+    </aside>
+    <aside class="sidebar">
+      <div class="brand">TRILLION</div>
+      <button id="empire-btn" class="empire-btn">❖ Empire Overview</button>
+      <div class="sidebar-label">Active Ventures</div>
+      <nav id="ventures-list"></nav>
+      <button id="add-venture" class="add-btn" title="Add a business">+</button>
+      <div class="sidebar-foot">
+        <span class="founder-pill">✦ Founder Mode</span>
+        <span id="brain-pill" class="pill-mini">…</span>
+      </div>
+    </aside>
+
+    <main id="main">
+      <!-- Écran d'accueil / nouvelle entreprise (§5) — layout 3 colonnes (référence §18) -->
+      <section id="screen-welcome" class="screen">
+        <div class="welcome-grid">
+          <div class="panel-side glass">
+            <div class="panel-label">✦ Compose ton Masterplan</div>
+            <div class="composer">
+              <textarea id="welcome-input" rows="8" placeholder="Talk with Trillion"></textarea>
+              <div class="panel-label small">Univers</div>
+              <div class="chip-row" id="universe-chips">
+                <button class="chip" data-sample="trading">Trading</button>
+                <button class="chip" data-sample="agency">Agence</button>
+                <button class="chip" data-sample="ecommerce">E-commerce</button>
+                <button class="chip" data-sample="saas">SaaS</button>
+                <button class="chip" data-sample="immobilier">Immobilier</button>
+              </div>
+              <div class="composer-row">
+                <button id="welcome-mic" class="icon-btn" title="Parler à Trillion">🎙</button>
+                <button id="welcome-send" class="send-btn">Send ✦</button>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="panel-label small">Pas de plan ? On le bâtit ensemble</div>
+            <button id="create-masterplan" class="ghost-btn">Create a masterplan</button>
+          </div>
+
+          <div class="panel-center">
+            <h1 class="presence-title">TRILLION</h1>
+            <div class="presence-wrap">
+              <div class="presence" id="presence">
+                <div class="presence-ring r1"></div>
+                <div class="presence-ring r2"></div>
+                <div class="presence-core"></div>
+              </div>
+            </div>
+            <p class="presence-sub">Add a business. Give Trillion the Masterplan. She builds the cockpit.</p>
+            <div id="welcome-chat" class="welcome-chat"></div>
+          </div>
+
+          <div class="panel-side glass">
+            <div class="panel-label">Trillion · en direct</div>
+            <div class="portrait-frame">
+              <img id="presence-img" src="/assets/trillion-portrait.webp" alt="Trillion" onerror="this.closest('.portrait-frame').classList.add('empty'); this.remove()" />
+              <div class="portrait-fallback">✦</div>
+            </div>
+            <div id="live-status" class="pill-mini">présence active</div>
+            <div class="divider"></div>
+            <div class="panel-label small">Elle construit ton cockpit</div>
+            <div class="chip-row static">
+              <span class="chip ghost">P&amp;L</span><span class="chip ghost">Risk Radar</span>
+              <span class="chip ghost">Pipeline</span><span class="chip ghost">Living Memory</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Le dashboard se bâtit sous les yeux (§6) -->
+      <section id="screen-building" class="screen" hidden>
+        <div class="building-head">
+          <div class="presence small">
+            <div class="presence-ring r1"></div>
+            <div class="presence-core"></div>
+          </div>
+          <div>
+            <h2 id="building-title">Trillion construit ton cockpit…</h2>
+            <div id="building-steps" class="building-steps"></div>
+          </div>
+        </div>
+        <div id="building-grid" class="grid"></div>
+      </section>
+
+      <!-- §15 : Empire Overview — « Qu'est-ce qui mérite mon attention maintenant ? » -->
+      <section id="screen-empire" class="screen" hidden>
+        <header class="dash-head glass">
+          <div>
+            <h2>Empire Overview</h2>
+            <span class="pill-mini">Qu’est-ce qui mérite mon attention maintenant ?</span>
+          </div>
+          <div class="presence small"><div class="presence-ring r1"></div><div class="presence-core"></div></div>
+        </header>
+        <div id="empire-grid" class="grid"></div>
+      </section>
+
+      <!-- Dashboard d'un venture -->
+      <section id="screen-dashboard" class="screen" hidden>
+        <header class="dash-head glass">
+          <div>
+            <h2 id="dash-name">—</h2>
+            <span id="dash-type" class="pill-mini"></span>
+          </div>
+          <div class="period-picker" id="period-picker">
+            <button data-period="day">Jour</button>
+            <button data-period="week">Semaine</button>
+            <button data-period="month">Mois</button>
+            <button data-period="year">Année</button>
+            <button data-period="lifetime">Lifetime</button>
+          </div>
+        </header>
+        <div id="dash-grid" class="grid"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="tagline">Puissance&nbsp;.&nbsp;Élégance&nbsp;.&nbsp;Contrôle&nbsp;.</div>
+  <div id="toast" class="toast" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

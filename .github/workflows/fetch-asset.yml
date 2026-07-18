@@ -1,0 +1,35 @@
+name: fetch-asset
+# Relais d'assets : télécharge une URL publique et la committe sur la branche.
+# Utile quand l'environnement de dev n'a pas accès au CDN d'images.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL publique du fichier à télécharger"
+        required: true
+      path:
+        description: "Chemin de destination dans le repo"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Download asset
+        run: |
+          mkdir -p "$(dirname "${{ inputs.path }}")"
+          curl -fsSL "${{ inputs.url }}" -o "${{ inputs.path }}"
+          ls -la "${{ inputs.path }}"
+      - name: Commit
+        run: |
+          git config user.name "trillion-asset-bot"
+          git config user.email "actions@github.com"
+          git add "${{ inputs.path }}"
+          git commit -m "chore: fetch asset ${{ inputs.path }}" || echo "rien à committer"
+          git push
