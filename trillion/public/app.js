@@ -613,3 +613,24 @@ wireMic($('#welcome-mic'), $('#welcome-input'));
   if (state.ventures.length) await showEmpire();
   else showWelcome();
 })();
+
+// ---- Rail d'icônes + chips Univers (référence §18) ----
+const SAMPLE_PLANS = {
+  trading: `# Fonds personnel de trading\nStratégie swing trading crypto (BTC, ETH) et actions US.\nObjectif : atteindre 100 000$ de capital en 12 mois.\nKPI : P&L mensuel, win rate, drawdown maximum 15%.\nRègle : jamais plus de 2% du capital par trade.\nRisque : volatilité extrême du marché crypto.`,
+  agency: `# Agence de services IA\nOn vend des réceptionnistes IA aux PME du Québec.\nClient idéal : cliniques, garages, salons — 500$/mois par client.\nObjectif : 20 clients récurrents d'ici 6 mois.\nKPI : leads contactés, démos bookées, taux de conversion, MRR.\nRisque : cycle de vente lent, dépendance aux référencements.`,
+  ecommerce: `# Boutique e-commerce\nBoutique Shopify de produits bien-être, dropshipping au départ.\nObjectif : 10 000$/mois de ventes en 6 mois, marge 30%.\nKPI : commandes/jour, coût d'acquisition, panier moyen, retours.\nOpérations : fournisseurs à valider, inventaire à suivre.\nRisque : délais fournisseurs, coût des ads qui monte.`,
+  saas: `# Micro-SaaS\nLogiciel d'abonnement pour gérer les rendez-vous des barbiers.\nPrix : 29$/mois par salon. Objectif : 1 000$ MRR en 4 mois.\nKPI : MRR, churn mensuel, essais convertis, tickets support.\nRisque : churn élevé si l'onboarding est faible.`,
+  immobilier: `# Portefeuille immobilier\nAchat de duplex/triplex à revenus au Québec.\nObjectif : 3 portes de plus cette année, cashflow 300$/porte/mois.\nKPI : loyers perçus, taux d'occupation, cashflow net mensuel.\nRisque : taux d'intérêt, vacance locative, réparations surprises.`,
+};
+
+document.querySelectorAll('#universe-chips .chip').forEach(chip => {
+  chip.onclick = () => {
+    $('#welcome-input').value = SAMPLE_PLANS[chip.dataset.sample] || '';
+    $('#welcome-input').focus();
+    toast('Exemple de Masterplan inséré — modifie-le ou Send directement ✦');
+  };
+});
+
+$('#rail-home')?.addEventListener('click', () => showEmpire());
+$('#rail-new')?.addEventListener('click', () => showWelcome());
+$('#rail-crown')?.addEventListener('click', () => toast('✦ Founder Mode — actif'));
