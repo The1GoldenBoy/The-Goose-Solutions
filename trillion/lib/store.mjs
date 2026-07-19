@@ -94,6 +94,22 @@ export class Store {
       .filter(Boolean).slice(-limit);
   }
 
+  // ---- KPIs produit (§30) : les chiffres qui disent la vérité, mesurés localement ----
+  async logMetric(entry) {
+    const line = { at: new Date().toISOString(), ...entry };
+    await appendFile(join(this.stateDir, 'metrics.jsonl'), JSON.stringify(line) + '\n', 'utf8');
+    return line;
+  }
+
+  async metrics(limit = 2000) {
+    const path = join(this.stateDir, 'metrics.jsonl');
+    if (!existsSync(path)) return [];
+    const raw = await readFile(path, 'utf8');
+    return raw.split('\n').filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean).slice(-limit);
+  }
+
   // ---- Activity Log (§22) : chaque action d'agent est visible, rien ne se fait en cachette ----
   async logActivity(ventureId, entry) {
     this.#safeId(ventureId);

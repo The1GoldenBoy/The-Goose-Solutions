@@ -4,14 +4,14 @@
 
 Trillion est un command center IA où chaque entreprise/projet actif possède son propre cockpit personnalisé. L'utilisateur ne configure pas le software — **il parle à Trillion, et Trillion configure le software autour de l'entreprise** (§19 du Master Plan Trillion).
 
-Implémentation complète du **Master Plan Trillion** (sections 1 à 20) + le cœur de la **V2** (§21-24 : Trillion proactive, agents Reporter/Sentinelle, connecteur CSV, mémoire corrigible). Node ≥ 18, zéro dépendance obligatoire.
+Implémentation complète du **Master Plan Trillion** (sections 1 à 20) + le cœur de la **V2** (§21-25, 27, 30 : Trillion proactive, agents Reporter/Sentinelle, connecteur CSV, mémoire corrigible, onboarding 90 secondes, voix signature, KPIs Founder Mode). Node ≥ 18, zéro dépendance obligatoire.
 
 ## Démarrage
 
 ```bash
 cd trillion
 npm start                 # → http://127.0.0.1:8888
-npm test                  # 16 tests
+npm test                  # 17 tests
 ```
 
 **Cerveau de Trillion** : moteur local déterministe inclus (fonctionne hors ligne). Pour que Trillion réponde à *tout* en profondeur (§9) :
@@ -49,6 +49,9 @@ Le badge dans la barre de gauche indique le moteur actif (`✦ Claude connectée
 | 22 | Agents qui **travaillent** : le **Reporter** dépose le rapport hebdo (vendredi) dans le Vault + Living Memory ; la **Sentinelle** surveille les seuils. Chaque action est visible dans l'**Activity Log** (vue Agents) — rien ne se fait en cachette | `runAgents()` + `activity/*.jsonl` |
 | 23 | **Connecteur universel CSV** (date, montant, note) avec règle de vérité : chaque chiffre affiche sa provenance — « dit à Trillion » ou « import CSV, sync … ». Débrancher se fait par conversation (« Débranche le CSV ») | vue P&L + `/import/csv` |
 | 24 | **La mémoire qui se corrige** : « Cette décision du 12 avril n'est plus vraie » → archivée avec date de révocation (jamais de suppression silencieuse) ; « Leçon : … » → `Lessons.md` du Vault, ressortie au bon moment ; **export total** en Markdown ouvert | `revokeDecision()` + `/export` |
+| 25 | **Onboarding 90 secondes** : Chemin B en **3 questions au lieu de 6** (+ 3 optionnelles « Aiguise-le »), exemples prêts à coller (chips Univers), **time-to-cockpit mesuré** pour vrai et affiché (« Dashboard ready. — cockpit construit en 13 s ») | interview + `startTtc()` |
+| 27 | **La voix signature** : ElevenLabs en streaming si `ELEVENLABS_API_KEY` est présente (une seule voix officielle, `TRILLION_VOICE_ID` pour la changer), **fallback navigateur silencieux** sinon. Trace écrite toujours (§8) | `/api/tts` + `speak()` |
+| 30 | **Founder Mode (♛)** : les KPIs du produit mesurés localement — time-to-cockpit (< 2 min), % des modifications faites **par conversation** (> 70 % — LA mesure du §19), souvenirs cités / semaine (≥ 3), actions d'agents. Jamais inventés | `/api/kpis` + écran ♛ |
 
 ## API
 
@@ -67,6 +70,10 @@ DELETE /api/ventures/:id
 GET  /api/brief                         Morning Brief (§21) — fait aussi tourner Reporter + Sentinelle
 POST /api/ventures/:id/import/csv       {csv} → P&L avec provenance + heure de sync (§23)
 GET  /api/ventures/:id/export           export total en Markdown (§24)
+GET  /api/interview?deep=1              les 3 questions d'aiguisage du Chemin B (§25)
+POST /api/metrics                       mesures produit (time_to_cockpit…) (§30)
+GET  /api/kpis                          KPIs du produit, mesurés localement (§30)
+POST /api/tts                           voix signature ElevenLabs, 204 → fallback navigateur (§27)
 ```
 
 ## Image de Trillion

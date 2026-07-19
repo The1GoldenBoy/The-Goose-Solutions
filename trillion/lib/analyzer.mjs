@@ -149,41 +149,36 @@ export function buildSteps(analysis) {
   ];
 }
 
-// §5 Chemin B : les questions de Trillion pour co-construire le Masterplan.
-// Pas un formulaire froid — une conversation.
+// §5 Chemin B · §25 : trois questions au lieu de six — le wow en moins de deux minutes.
+// Pas un formulaire froid — une conversation. Trois de plus, optionnelles, pour aiguiser.
 export const INTERVIEW = [
   { key: 'vision', q: 'Qu’est-ce que tu veux bâtir ? Raconte-moi l’idée comme à une amie.' },
-  { key: 'client', q: 'Qui est ton client idéal ? Et qu’est-ce que tu lui vends exactement ?' },
   { key: 'money', q: 'Comment tu fais de l’argent avec ça ? (prix, abonnement, commission…)' },
   { key: 'goal', q: 'C’est quoi l’objectif principal — le chiffre qui te ferait dire « on a réussi » ?' },
+];
+
+export const INTERVIEW_DEEP = [
+  { key: 'client', q: 'Qui est ton client idéal ? Et qu’est-ce que tu lui vends exactement ?' },
   { key: 'track', q: 'Qu’est-ce qu’on doit suivre chaque semaine ? Quelles décisions ce dashboard doit t’aider à prendre ?' },
   { key: 'risks', q: 'Où sont les risques ? Qu’est-ce qui bloque la croissance en ce moment ?' },
 ];
 
 // Assemble un Masterplan propre à partir des réponses d'interview (Chemin B).
+// §25 : les sections sans réponse disparaissent — jamais de trous « — » dans le plan.
 export function draftMasterplan(answers) {
-  const get = (k) => answers[k]?.trim() || '—';
-  const title = (get('vision').split(/[.!\n]/)[0] || 'Nouveau projet').slice(0, 60);
+  const get = (k) => answers[k]?.trim() || null;
+  const title = ((get('vision') || 'Nouveau projet').split(/[.!\n]/)[0] || 'Nouveau projet').slice(0, 60);
+  const sections = [
+    ['Vision', get('vision')],
+    ['Client & Offre', get('client')],
+    ['Modèle de revenus', get('money')],
+    ['Objectif principal', get('goal')],
+    ['KPIs à suivre', get('track')],
+    ['Risques & blocages', get('risks')],
+  ];
   return [
     `# ${title}`,
     '',
-    '## Vision',
-    get('vision'),
-    '',
-    '## Client & Offre',
-    get('client'),
-    '',
-    '## Modèle de revenus',
-    get('money'),
-    '',
-    '## Objectif principal',
-    get('goal'),
-    '',
-    '## KPIs à suivre',
-    get('track'),
-    '',
-    '## Risques & blocages',
-    get('risks'),
-    '',
+    ...sections.filter(([, v]) => v).flatMap(([h, v]) => [`## ${h}`, v, '']),
   ].join('\n');
 }

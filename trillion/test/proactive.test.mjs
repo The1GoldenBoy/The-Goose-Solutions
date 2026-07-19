@@ -210,3 +210,47 @@ test('API : /api/brief, import CSV avec provenance, mémoire corrigible, export 
   assert.match(exp.data, /qualifier le budget/);
   assert.match(exp.data, /dit à Trillion/);
 });
+
+// ---- §25/§27/§30 : time-to-cockpit, voix signature, KPIs du produit ----
+test('API : métriques produit, /api/kpis et /api/tts (fallback sans clé)', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'trillion-kpis-'));
+  const app = await createApp({ stateDir: join(dir, 'state') });
+  await new Promise(r => app.server.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  t.after(async () => { app.close(); await rm(dir, { recursive: true, force: true }); });
+  const call = async (method, path, body) => {
+    const res = await fetch(base + path, {
+      method, headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return { status: res.status, data: await res.json().catch(() => ({})) };
+  };
+
+  // §25 — time-to-cockpit envoyé par le front
+  assert.equal((await call('POST', '/api/metrics', { kind: 'time_to_cockpit', ms: 47000 })).status, 200);
+  assert.equal((await call('POST', '/api/metrics', { kind: 'nimporte' })).status, 400);
+
+  // §30 — une modification par conversation + un souvenir cité, mesurés automatiquement
+  const plan = '# Studio Lys\nAgence de services aux PME. Objectif : 10 clients.';
+  const { data: created } = await call('POST', '/api/ventures', { masterplan: plan });
+  await call('POST', `/api/ventures/${created.venture.id}/chat`, { text: 'Ajoute une vue fournisseurs' });
+  await call('POST', `/api/ventures/${created.venture.id}/chat`, { text: 'Pourquoi cette recommandation ?' });
+
+  const { status, data: kpis } = await call('GET', '/api/kpis');
+  assert.equal(status, 200);
+  assert.equal(kpis.timeToCockpit.lastMs, 47000);
+  assert.ok(kpis.timeToCockpit.medianMs < kpis.timeToCockpit.targetMs);
+  assert.equal(kpis.conversationShare.pct, 100); // 1 modification, 100 % par conversation
+  assert.ok(kpis.memoryCited.count7d >= 1);
+  assert.equal(kpis.ventures, 1);
+
+  // §27 — sans ELEVENLABS_API_KEY : 204, le navigateur prend le relais en silence
+  delete process.env.ELEVENLABS_API_KEY;
+  const tts = await fetch(base + '/api/tts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'Bonjour Max.' }),
+  });
+  assert.equal(tts.status, 204);
+  const statusR = await call('GET', '/api/status');
+  assert.equal(statusR.data.voice, 'browser');
+});

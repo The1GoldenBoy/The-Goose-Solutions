@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
 import { Store } from './lib/store.mjs';
-import { analyzeMasterplan, buildSteps, draftMasterplan, INTERVIEW, VIEW_CATALOG } from './lib/analyzer.mjs';
+import { analyzeMasterplan, buildSteps, draftMasterplan, INTERVIEW, INTERVIEW_DEEP, VIEW_CATALOG } from './lib/analyzer.mjs';
 import { respond, isClaudeAvailable, pnlForPeriod } from './lib/trillion.mjs';
 import { buildMorningBrief, runAgents, parseCsvPnl } from './lib/proactive.mjs';
 
@@ -112,6 +112,38 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
     ].join('\n');
   }
 
+  // §30 — Les chiffres qui disent la vérité : mesurés, jamais inventés.
+  async function productKpis() {
+    const DAY = 24 * 3600 * 1000;
+    const [metrics, ventures] = await Promise.all([store.metrics(), store.ventures()]);
+    const week = (m) => (Date.now() - new Date(m.at)) < 7 * DAY;
+
+    const ttc = metrics.filter(m => m.kind === 'time_to_cockpit').map(m => m.ms).sort((a, b) => a - b);
+    const changes = metrics.filter(m => m.kind === 'cockpit_change');
+    const conv = changes.filter(c => c.via === 'conversation').length;
+    const cited7 = metrics.filter(m => m.kind === 'memory_cited' && week(m)).length;
+
+    let agentActions7d = 0;
+    for (const v of ventures) agentActions7d += (await store.activity(v.id)).filter(week).length;
+
+    return {
+      timeToCockpit: {
+        lastMs: ttc.at(-1) ?? null,
+        medianMs: ttc.length ? ttc[Math.floor(ttc.length / 2)] : null,
+        targetMs: 120000, // < 2 min (§25)
+        samples: ttc.length,
+      },
+      conversationShare: {
+        pct: changes.length ? Math.round((conv / changes.length) * 100) : null,
+        target: 70, // > 70 % des modifications par conversation — LA mesure du §19
+        total: changes.length,
+      },
+      memoryCited: { count7d: cited7, target: 3 }, // ≥ 3 souvenirs cités / semaine
+      ventures: ventures.length,
+      agentActions7d,
+    };
+  }
+
   // §15 — Empire Overview : « Qu'est-ce qui mérite mon attention maintenant ? »
   async function empireOverview() {
     const ventures = await store.ventures();
@@ -150,8 +182,18 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
 
       if (req.method === 'GET') {
         if (path === '/healthz') return sendJson(res, 200, { ok: true, at: new Date().toISOString() });
-        if (path === '/api/status') return sendJson(res, 200, { claude: await isClaudeAvailable(), viewCatalog: VIEW_CATALOG });
-        if (path === '/api/interview') return sendJson(res, 200, INTERVIEW);
+        if (path === '/api/status') {
+          return sendJson(res, 200, {
+            claude: await isClaudeAvailable(),
+            voice: process.env.ELEVENLABS_API_KEY ? 'signature' : 'browser', // §27
+            viewCatalog: VIEW_CATALOG,
+          });
+        }
+        // §25 — trois questions d'abord ; ?deep=1 pour les trois d'aiguisage.
+        if (path === '/api/interview') return sendJson(res, 200, url.searchParams.get('deep') ? INTERVIEW_DEEP : INTERVIEW);
+
+        // §30 — les KPIs du produit, calculés depuis les vraies mesures locales.
+        if (path === '/api/kpis') return sendJson(res, 200, await productKpis());
         if (path === '/api/empire') return sendJson(res, 200, await empireOverview());
 
         // §21-22 — Morning Brief : les agents tournent en passant, puis Trillion parle (ou se tait).
@@ -188,6 +230,41 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
 
       if (req.method === 'POST') {
         const body = await readBody(req);
+
+        // §30 — mesures produit envoyées par le front (ex. time-to-cockpit).
+        if (path === '/api/metrics') {
+          const KINDS = new Set(['time_to_cockpit', 'cockpit_change', 'memory_cited']);
+          if (!KINDS.has(body.kind)) return sendJson(res, 400, { error: 'kind inconnu' });
+          const entry = { kind: body.kind };
+          if (body.kind === 'time_to_cockpit') entry.ms = Math.max(0, Number(body.ms) || 0);
+          if (body.kind === 'cockpit_change') entry.via = body.via === 'ui' ? 'ui' : 'conversation';
+          await store.logMetric(entry);
+          return sendJson(res, 200, { ok: true });
+        }
+
+        // §27 — la voix signature de Trillion : ElevenLabs si la clé est là, sinon 204
+        // et le navigateur prend le relais en silence. La trace écrite reste toujours (§8).
+        if (path === '/api/tts') {
+          if (!body.text?.trim()) return sendJson(res, 400, { error: 'text requis' });
+          const key = process.env.ELEVENLABS_API_KEY;
+          if (!key) { res.writeHead(204); return res.end(); }
+          const voiceId = process.env.TRILLION_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'; // calme, chaleureuse
+          const text = body.text.replace(/[✦◈◉⬖⬡◬✧❖☰⟁◭⬢▣∿⟠🖋⏳⏏☼]/g, '').slice(0, 600);
+          const upstream = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`, {
+            method: 'POST',
+            headers: { 'xi-api-key': key, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text,
+              model_id: 'eleven_multilingual_v2',
+              voice_settings: { stability: 0.55, similarity_boost: 0.75, style: 0.3 },
+            }),
+          });
+          if (!upstream.ok || !upstream.body) { res.writeHead(204); return res.end(); }
+          res.writeHead(200, { 'Content-Type': 'audio/mpeg' });
+          const { Readable } = await import('node:stream');
+          Readable.fromWeb(upstream.body).pipe(res);
+          return;
+        }
 
         // Chemin A — analyse sans persistance : « I understand this venture. I recommend… »
         if (path === '/api/ventures/analyze') {
@@ -228,6 +305,11 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
           if (result.report) {
             await store.writeVaultNote(`Ventures/${safeName}/Reports/${new Date().toISOString().slice(0, 10)}.md`, result.text);
           }
+          // §30 — mesures honnêtes : modification par conversation, souvenir cité.
+          if (result.dashboardChanged) await store.logMetric({ kind: 'cockpit_change', via: 'conversation' });
+          if (/on avait décidé|rappelle-toi ta leçon|ma mémoire me dit|décision du \d/i.test(result.text)) {
+            await store.logMetric({ kind: 'memory_cited' });
+          }
           const fresh = await store.getVenture(venture.id);
           return sendJson(res, 200, { reply: result.text, dashboardChanged: result.dashboardChanged, venture: fresh });
         }
@@ -249,6 +331,7 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
           if (!venture.views.includes('pnl')) venture.views.push('pnl');
           await store.upsertVenture(venture);
           await store.logActivity(venture.id, { agent: 'Connecteur CSV', action: `${entries.length} entrée(s) P&L importées${errors.length ? ` · ${errors.length} ligne(s) ignorées` : ''}` });
+          await store.logMetric({ kind: 'cockpit_change', via: 'ui' }); // §30 — l'import bouton compte côté UI
           return sendJson(res, 200, { ok: true, imported: entries.length, ignored: errors.length, venture });
         }
 
