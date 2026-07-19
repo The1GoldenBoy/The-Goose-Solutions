@@ -18,6 +18,7 @@ const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
 export async function createApp({ stateDir = resolve(__dirname, 'state') } = {}) {
@@ -211,7 +212,9 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const PORT = Number(process.env.PORT || 8888);
-  const HOST = process.env.HOST || '127.0.0.1';
+  // 0.0.0.0 par défaut : joignable par l'hébergeur ET depuis ton iPhone sur le même WiFi.
+  // Mets HOST=127.0.0.1 pour restreindre à la machine locale.
+  const HOST = process.env.HOST || '0.0.0.0';
   const { server } = await createApp({});
   server.listen(PORT, HOST, () => console.log(`[trillion] ✦ http://${HOST}:${PORT}`));
 }

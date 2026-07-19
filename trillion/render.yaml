@@ -1,0 +1,16 @@
+# Déploiement Trillion sur Render (https://render.com) — gratuit, sans build.
+# Depuis Render : New + → Blueprint → pointe ce dépôt → Render lit ce fichier.
+services:
+  - type: web
+    name: trillion
+    runtime: node
+    plan: free
+    rootDir: trillion
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      # Trillion marche 100 % sans clé (moteur local). Ajoute-la pour toute son intelligence.
+      - key: ANTHROPIC_API_KEY
+        sync: false
