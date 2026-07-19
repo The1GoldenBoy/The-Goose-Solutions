@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { computeAlerts, buildMorningBrief, runReporter, runSentinelle, parseCsvPnl } from '../lib/proactive.mjs';
+import { computeAlerts, buildMorningBrief, runReporter, runSentinelle, parseCsvPnl, syncStripe } from '../lib/proactive.mjs';
 import { parseLesson, parseAlertSetting, parseMemoryRevoke, parseSourceDisconnect } from '../lib/trillion.mjs';
 import { Store } from '../lib/store.mjs';
 import { createApp } from '../server.mjs';
@@ -125,6 +125,33 @@ test('parseCsvPnl : en-tête, séparateur ;, décimales FR, lignes invalides com
   assert.equal(errors.length, 1);
 });
 
+// ---- §23 : connecteur Stripe (lecture seule, fetch stubé) ----
+test('syncStripe : mappe les balance_transactions en entrées P&L, refuse une clé invalide', async () => {
+  const fakeFetch = async (url, opts) => {
+    assert.match(url, /balance_transactions/);
+    assert.equal(opts.headers.Authorization, 'Bearer sk_test_bonne_cle');
+    return {
+      ok: true,
+      json: async () => ({
+        data: [
+          { net: 48250, created: 1770000000, description: 'Abonnement Command', type: 'charge' },
+          { net: -900, created: 1770086400, description: null, type: 'stripe_fee' },
+          { net: 0, created: 1770100000, type: 'adjustment' },
+        ],
+      }),
+    };
+  };
+  const entries = await syncStripe({ apiKey: 'sk_test_bonne_cle', fetchImpl: fakeFetch });
+  assert.equal(entries.length, 2); // le net = 0 est ignoré
+  assert.equal(entries[0].amount, 482.5);
+  assert.equal(entries[0].note, 'Abonnement Command');
+  assert.equal(entries[1].amount, -9);
+  assert.equal(entries[1].note, 'stripe_fee');
+
+  const badFetch = async () => ({ ok: false, status: 401, json: async () => ({ error: { message: 'Invalid API Key' } }) });
+  await assert.rejects(() => syncStripe({ apiKey: 'sk_mauvaise', fetchImpl: badFetch }), /Stripe a refusé.*Invalid API Key/);
+});
+
 // ---- §21/§23/§24 : parseurs conversationnels ----
 test('parseurs : leçon, réglages d’alertes, révocation, débranchement', () => {
   assert.equal(parseLesson('Leçon : ne jamais trader le dimanche soir'), 'ne jamais trader le dimanche soir');
@@ -142,6 +169,7 @@ test('parseurs : leçon, réglages d’alertes, révocation, débranchement', ()
   assert.equal(parseMemoryRevoke('on décide de viser les spas'), null);
 
   assert.equal(parseSourceDisconnect('débranche le CSV').source, 'csv');
+  assert.equal(parseSourceDisconnect('débranche Stripe').source, 'stripe');
   assert.equal(parseSourceDisconnect('branche le csv'), null);
 });
 
@@ -243,6 +271,12 @@ test('API : métriques produit, /api/kpis et /api/tts (fallback sans clé)', asy
   assert.equal(kpis.conversationShare.pct, 100); // 1 modification, 100 % par conversation
   assert.ok(kpis.memoryCited.count7d >= 1);
   assert.equal(kpis.ventures, 1);
+
+  // §23 — Stripe sans clé : refus clair, jamais de connexion silencieuse
+  delete process.env.STRIPE_API_KEY;
+  const stripeR = await call('POST', `/api/ventures/${created.venture.id}/connect/stripe`, {});
+  assert.equal(stripeR.status, 400);
+  assert.match(stripeR.data.error, /STRIPE_API_KEY/);
 
   // §27 — sans ELEVENLABS_API_KEY : 204, le navigateur prend le relais en silence
   delete process.env.ELEVENLABS_API_KEY;

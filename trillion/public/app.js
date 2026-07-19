@@ -449,11 +449,14 @@ function buildPanel(venture, viewId, skeleton = false) {
       }
       // §23 — jamais de chiffre sans origine : provenance + heure de sync.
       const log = venture.pnlLog || [];
-      const said = log.filter(e => e.source !== 'csv').length;
+      const said = log.filter(e => !['csv', 'stripe'].includes(e.source)).length;
       const csvSrc = (venture.sources || []).find(s => s.type === 'csv');
+      const stripeSrc = (venture.sources || []).find(s => s.type === 'stripe');
+      const syncDate = (s) => new Date(s.lastSyncAt).toLocaleDateString('fr-CA');
       const provenance = [
         said ? `dit à Trillion (${said})` : null,
-        csvSrc ? `import CSV (${csvSrc.entries}, sync ${new Date(csvSrc.lastSyncAt).toLocaleDateString('fr-CA')})` : null,
+        csvSrc ? `import CSV (${csvSrc.entries}, sync ${syncDate(csvSrc)})` : null,
+        stripeSrc ? `Stripe (${stripeSrc.entries}, sync ${syncDate(stripeSrc)})` : null,
       ].filter(Boolean).join(' · ');
       if (provenance) panel.append(el('div', 'line src-line', `<small>Sources : ${esc(provenance)}</small>`));
       // §23 — connecteur universel : importer un CSV (date, montant, note).
@@ -470,6 +473,18 @@ function buildPanel(venture, viewId, skeleton = false) {
         } catch (e) { toast(e.message); }
       };
       panel.append(importBtn, fileInput);
+      // §23 — Stripe en lecture seule : le bouton n'apparaît que si la clé est branchée côté serveur.
+      if (state.stripe) {
+        const stripeBtn = el('button', 'ghost-btn mini', stripeSrc ? 'Re-sync Stripe' : 'Brancher Stripe');
+        stripeBtn.onclick = async () => {
+          try {
+            const r = await api(`/api/ventures/${venture.id}/connect/stripe`, { method: 'POST', body: {} });
+            toast(`✦ Stripe : ${r.imported} transaction(s) synchronisées`);
+            await openVenture(venture.id);
+          } catch (e) { toast(e.message); }
+        };
+        panel.append(stripeBtn);
+      }
       break;
     }
     case 'performance':
@@ -750,6 +765,7 @@ wireMic($('#welcome-mic'), $('#welcome-input'));
     const status = await api('/api/status');
     state.viewCatalog = status.viewCatalog || {};
     state.voice = status.voice || 'browser'; // §27
+    state.stripe = Boolean(status.stripe);   // §23
     $('#brain-pill').textContent = status.claude ? '✦ Claude connectée' : '◌ moteur local';
     $('#brain-pill').title = status.claude
       ? 'Trillion pense avec Claude (claude-opus-4-8)'

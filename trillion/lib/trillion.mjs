@@ -166,6 +166,7 @@ export function parseMemoryRevoke(text) {
 // §23 — débrancher une source se fait aussi par conversation.
 export function parseSourceDisconnect(text) {
   const lower = text.toLowerCase();
+  if (/(débranche|debranche|déconnecte|enlève|retire).*(stripe)/.test(lower)) return { source: 'stripe' };
   if (/(débranche|debranche|déconnecte|enlève|retire).*(csv|l'import|import)/.test(lower)) return { source: 'csv' };
   return null;
 }
@@ -420,7 +421,8 @@ export async function respond(message, ctx, history = []) {
       ctx.venture.sources = (ctx.venture.sources || []).filter(s => s.type !== disconnect.source);
       await ctx.store.upsertVenture(ctx.venture);
       const removed = before - ctx.venture.pnlLog.length;
-      return { text: [`⏏ Import CSV débranché — ${removed} entrée(s) retirées du P&L. Ce que tu m'as dit en conversation reste intact.`, ...notes].join('\n'), dashboardChanged: true };
+      const label = disconnect.source === 'stripe' ? 'Stripe débranché' : 'Import CSV débranché';
+      return { text: [`⏏ ${label} — ${removed} entrée(s) retirées du P&L. Ce que tu m'as dit en conversation reste intact.`, ...notes].join('\n'), dashboardChanged: true };
     }
 
     // §10 — quick actions à vrai but
