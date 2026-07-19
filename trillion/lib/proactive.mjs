@@ -153,6 +153,27 @@ export async function runAgents(store, now = new Date()) {
   return { reports, alerts };
 }
 
+// ---- §23 · Connecteur Stripe (lecture seule, §28) : les revenus se remplissent seuls ----
+// Brancher prend < 3 minutes : STRIPE_API_KEY côté serveur, et c'est tout.
+export async function syncStripe({ apiKey, fetchImpl = fetch, limit = 100 }) {
+  const res = await fetchImpl(`https://api.stripe.com/v1/balance_transactions?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(`Stripe a refusé la connexion (${res.status}) : ${detail.error?.message || 'vérifie la clé'}`);
+  }
+  const { data = [] } = await res.json();
+  // Lecture seule : montants nets en dollars, datés, avec description — jamais d'écriture chez Stripe.
+  return data
+    .filter(t => typeof t.net === 'number' && t.net !== 0)
+    .map(t => ({
+      at: new Date(t.created * 1000).toISOString(),
+      amount: t.net / 100,
+      note: (t.description || t.type || 'Stripe').slice(0, 120),
+    }));
+}
+
 // ---- §23 · Connecteur universel : import CSV du P&L ----
 // Colonnes attendues (souples) : date, montant, note. Séparateur , ou ; — décimales . ou ,
 export function parseCsvPnl(csv) {

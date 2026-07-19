@@ -22,7 +22,13 @@ Sur ton Mac/PC : `cd trillion && node server.mjs`. Le serveur écoute sur `0.0.0
 
 ## Donner à Trillion toute son intelligence
 
-Sans clé, Trillion tourne sur son **moteur local** (déterministe, hors ligne). Ajoute la variable d'environnement **`ANTHROPIC_API_KEY`** dans les réglages de l'hébergeur pour qu'elle réponde à tout avec Claude, en profondeur.
+Sans clé, Trillion tourne sur son **moteur local** (déterministe, hors ligne). Trois clés optionnelles, chacune débloque un pouvoir — toutes se mettent dans les variables d'environnement de l'hébergeur :
+
+| Variable | Ce qu'elle débloque |
+|---|---|
+| `ANTHROPIC_API_KEY` | Trillion répond à tout avec Claude, en profondeur (§9) |
+| `ELEVENLABS_API_KEY` | La voix signature de Trillion en streaming (§27) — sinon voix navigateur |
+| `STRIPE_API_KEY` | Connecteur Stripe en lecture seule : les revenus se remplissent seuls (§23) — utilise une clé restreinte lecture seule |
 
 ## Note sur les données
 

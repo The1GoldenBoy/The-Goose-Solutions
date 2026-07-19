@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { Store } from './lib/store.mjs';
 import { analyzeMasterplan, buildSteps, draftMasterplan, INTERVIEW, INTERVIEW_DEEP, VIEW_CATALOG } from './lib/analyzer.mjs';
 import { respond, isClaudeAvailable, pnlForPeriod } from './lib/trillion.mjs';
-import { buildMorningBrief, runAgents, parseCsvPnl } from './lib/proactive.mjs';
+import { buildMorningBrief, runAgents, parseCsvPnl, syncStripe } from './lib/proactive.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = resolve(__dirname, 'public');
@@ -186,6 +186,7 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
           return sendJson(res, 200, {
             claude: await isClaudeAvailable(),
             voice: process.env.ELEVENLABS_API_KEY ? 'signature' : 'browser', // §27
+            stripe: Boolean(process.env.STRIPE_API_KEY), // §23
             viewCatalog: VIEW_CATALOG,
           });
         }
@@ -333,6 +334,30 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
           await store.logActivity(venture.id, { agent: 'Connecteur CSV', action: `${entries.length} entrée(s) P&L importées${errors.length ? ` · ${errors.length} ligne(s) ignorées` : ''}` });
           await store.logMetric({ kind: 'cockpit_change', via: 'ui' }); // §30 — l'import bouton compte côté UI
           return sendJson(res, 200, { ok: true, imported: entries.length, ignored: errors.length, venture });
+        }
+
+        // §23 — Connecteur Stripe : brancher prend < 3 minutes, lecture seule (§28).
+        const mStripe = path.match(/^\/api\/ventures\/([^/]+)\/connect\/stripe$/);
+        if (mStripe) {
+          const venture = await store.getVenture(mStripe[1]);
+          if (!venture) return sendJson(res, 404, { error: 'venture inconnu' });
+          const apiKey = process.env.STRIPE_API_KEY;
+          if (!apiKey) {
+            return sendJson(res, 400, { error: 'Ajoute STRIPE_API_KEY côté serveur (clé restreinte en lecture seule) et redis-le à Trillion — brancher prend moins de 3 minutes.' });
+          }
+          const entries = await syncStripe({ apiKey });
+          const syncedAt = new Date().toISOString();
+          // Re-sync idempotent : on remplace les entrées Stripe, on ne les empile jamais.
+          venture.pnlLog = (venture.pnlLog || []).filter(e => e.source !== 'stripe');
+          venture.pnlLog.push(...entries.map(e => ({ ...e, source: 'stripe', syncedAt })));
+          venture.pnlLog.sort((a, b) => a.at.localeCompare(b.at));
+          venture.sources = (venture.sources || []).filter(s => s.type !== 'stripe');
+          venture.sources.push({ type: 'stripe', lastSyncAt: syncedAt, entries: entries.length });
+          if (!venture.views.includes('pnl')) venture.views.push('pnl');
+          await store.upsertVenture(venture);
+          await store.logActivity(venture.id, { agent: 'Connecteur Stripe', action: `${entries.length} transaction(s) synchronisées (lecture seule)` });
+          await store.logMetric({ kind: 'cockpit_change', via: 'ui' });
+          return sendJson(res, 200, { ok: true, imported: entries.length, venture });
         }
 
         // Tasks (§10/§13) : cocher / décocher.
