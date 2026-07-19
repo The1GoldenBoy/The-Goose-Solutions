@@ -11,14 +11,17 @@ export class Store {
   constructor(stateDir) {
     this.stateDir = resolve(stateDir);
     this.venturesPath = join(this.stateDir, 'ventures.json');
+    this.settingsPath = join(this.stateDir, 'settings.json');
     this.messagesDir = join(this.stateDir, 'messages');
     this.memoryDir = join(this.stateDir, 'memory');
+    this.activityDir = join(this.stateDir, 'activity');
   }
 
   async init() {
     await mkdir(this.stateDir, { recursive: true });
     await mkdir(this.messagesDir, { recursive: true });
     await mkdir(this.memoryDir, { recursive: true });
+    await mkdir(this.activityDir, { recursive: true });
   }
 
   async #readJson(path, fallback) {
@@ -35,6 +38,19 @@ export class Store {
   #safeId(id) {
     if (!/^[a-zA-Z0-9-]+$/.test(id)) throw new Error(`id invalide: ${id}`);
     return id;
+  }
+
+  // ---- Réglages (§21) : modifiables par conversation, jamais par formulaire ----
+  async settings() {
+    const s = await this.#readJson(this.settingsPath, {});
+    return { ...s, alerts: { enabled: true, quietWeekends: false, ...(s.alerts || {}) } };
+  }
+
+  async saveSettings(patch) {
+    const current = await this.settings();
+    const next = { ...current, ...patch, alerts: { ...current.alerts, ...(patch.alerts || {}) } };
+    await this.#writeJsonAtomic(this.settingsPath, next);
+    return next;
   }
 
   // ---- Ventures ----
@@ -78,10 +94,29 @@ export class Store {
       .filter(Boolean).slice(-limit);
   }
 
+  // ---- Activity Log (§22) : chaque action d'agent est visible, rien ne se fait en cachette ----
+  async logActivity(ventureId, entry) {
+    this.#safeId(ventureId);
+    const line = { at: new Date().toISOString(), ...entry };
+    await appendFile(join(this.activityDir, `${ventureId}.jsonl`), JSON.stringify(line) + '\n', 'utf8');
+    return line;
+  }
+
+  async activity(ventureId, limit = 50) {
+    this.#safeId(ventureId);
+    const path = join(this.activityDir, `${ventureId}.jsonl`);
+    if (!existsSync(path)) return [];
+    const raw = await readFile(path, 'utf8');
+    return raw.split('\n').filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean).slice(-limit);
+  }
+
   // ---- Living Memory (§8-9 : mémoire business datée) ----
   async memory(ventureId) {
     this.#safeId(ventureId);
-    return this.#readJson(join(this.memoryDir, `${ventureId}.json`), { facts: [], decisions: [] });
+    const m = await this.#readJson(join(this.memoryDir, `${ventureId}.json`), {});
+    return { facts: [], decisions: [], lessons: [], ...m };
   }
 
   async saveMemory(ventureId, memory) {
@@ -100,6 +135,24 @@ export class Store {
     const memory = await this.memory(ventureId);
     memory.facts.push({ at: new Date().toISOString(), text, source });
     return this.saveMemory(ventureId, memory);
+  }
+
+  // §24 — Leçon : gravée en mémoire ET dans Lessons.md du Vault ; la Vigie la ressort.
+  async rememberLesson(ventureId, text, source = 'conversation') {
+    const memory = await this.memory(ventureId);
+    memory.lessons.push({ at: new Date().toISOString(), text, source });
+    return this.saveMemory(ventureId, memory);
+  }
+
+  // §24 — La mémoire qui se corrige : une décision se révoque, jamais ne s'efface.
+  // L'historique reste honnête : revokedAt est posé, le texte demeure citable.
+  async revokeDecision(ventureId, predicate) {
+    const memory = await this.memory(ventureId);
+    const target = memory.decisions.filter(d => !d.revokedAt).reverse().find(predicate);
+    if (!target) return null;
+    target.revokedAt = new Date().toISOString();
+    await this.saveMemory(ventureId, memory);
+    return target;
   }
 
   // ---- Memory Vault (§11) : notes Markdown, structure connectable à Obsidian ----

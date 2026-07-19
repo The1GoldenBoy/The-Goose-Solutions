@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { Store } from './lib/store.mjs';
 import { analyzeMasterplan, buildSteps, draftMasterplan, INTERVIEW, VIEW_CATALOG } from './lib/analyzer.mjs';
 import { respond, isClaudeAvailable, pnlForPeriod } from './lib/trillion.mjs';
+import { buildMorningBrief, runAgents, parseCsvPnl } from './lib/proactive.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = resolve(__dirname, 'public');
@@ -79,6 +80,38 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
     return venture;
   }
 
+  // §24/§28 — Export total en Markdown ouvert : « Tes Masterplans, ta mémoire, tes chiffres : à toi. »
+  async function exportVenture(venture) {
+    const [memory, activity] = await Promise.all([store.memory(venture.id), store.activity(venture.id)]);
+    const d = (iso) => new Date(iso).toISOString().slice(0, 10);
+    const fmt$ = (n) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toLocaleString('fr-CA')} $`;
+    return [
+      `# ${venture.name} — export Trillion (${d(new Date().toISOString())})`,
+      '',
+      `> Tes Masterplans, ta mémoire, tes chiffres : à toi. Trillion travaille pour toi, pas l'inverse.`,
+      '',
+      '## Masterplan', '', venture.masterplan || '_(aucun)_', '',
+      '## Décisions (Living Memory)', '',
+      ...(memory.decisions.length
+        ? memory.decisions.map(x => `- ${d(x.at)} — ${x.text}${x.revokedAt ? ` _(révoquée le ${d(x.revokedAt)})_` : ''}`)
+        : ['_(aucune)_']), '',
+      '## Leçons', '',
+      ...(memory.lessons.length ? memory.lessons.map(x => `- ${d(x.at)} — ${x.text}`) : ['_(aucune)_']), '',
+      '## Faits en mémoire', '',
+      ...(memory.facts.length ? memory.facts.map(x => `- ${d(x.at)} — ${x.text} _(${x.source})_`) : ['_(aucun)_']), '',
+      '## P&L (journal complet, avec provenance)', '',
+      ...((venture.pnlLog || []).length
+        ? venture.pnlLog.map(e => `- ${d(e.at)} — ${fmt$(e.amount)} · ${e.note || ''} _(${e.source === 'csv' ? `import CSV, sync ${d(e.syncedAt || e.at)}` : 'dit à Trillion'})_`)
+        : ['_(aucune entrée)_']), '',
+      '## Tâches', '',
+      ...((venture.tasks || []).length
+        ? venture.tasks.map(t => `- [${t.done ? 'x' : ' '}] ${t.text} _(${d(t.at)})_`)
+        : ['_(aucune)_']), '',
+      '## Activity Log (agents)', '',
+      ...(activity.length ? activity.map(a => `- ${d(a.at)} — **${a.agent}** : ${a.action}`) : ['_(vide)_']), '',
+    ].join('\n');
+  }
+
   // §15 — Empire Overview : « Qu'est-ce qui mérite mon attention maintenant ? »
   async function empireOverview() {
     const ventures = await store.ventures();
@@ -120,13 +153,35 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
         if (path === '/api/status') return sendJson(res, 200, { claude: await isClaudeAvailable(), viewCatalog: VIEW_CATALOG });
         if (path === '/api/interview') return sendJson(res, 200, INTERVIEW);
         if (path === '/api/empire') return sendJson(res, 200, await empireOverview());
+
+        // §21-22 — Morning Brief : les agents tournent en passant, puis Trillion parle (ou se tait).
+        if (path === '/api/brief') {
+          const agents = await runAgents(store);
+          const brief = await buildMorningBrief(store);
+          return sendJson(res, 200, { brief, agents: { reports: agents.reports.length, alerts: agents.alerts.length } });
+        }
+
+        // §24 — Export total : ta mémoire t'appartient, en Markdown ouvert.
+        const mExport = path.match(/^\/api\/ventures\/([^/]+)\/export$/);
+        if (mExport) {
+          const venture = await store.getVenture(mExport[1]);
+          if (!venture) return sendJson(res, 404, { error: 'venture inconnu' });
+          const md = await exportVenture(venture);
+          res.writeHead(200, {
+            'Content-Type': 'text/markdown; charset=utf-8',
+            'Content-Disposition': `attachment; filename="${venture.name.replace(/[^\w.-]+/g, '-')}-export.md"`,
+          });
+          return res.end(md);
+        }
         if (path === '/api/ventures') return sendJson(res, 200, await store.ventures());
         const mVenture = path.match(/^\/api\/ventures\/([^/]+)$/);
         if (mVenture) {
           const venture = await store.getVenture(mVenture[1]);
           if (!venture) return sendJson(res, 404, { error: 'venture inconnu' });
-          const [memory, messages] = await Promise.all([store.memory(venture.id), store.messages(venture.id)]);
-          return sendJson(res, 200, { venture, memory, messages });
+          const [memory, messages, activity] = await Promise.all([
+            store.memory(venture.id), store.messages(venture.id), store.activity(venture.id),
+          ]);
+          return sendJson(res, 200, { venture, memory, messages, activity });
         }
         return serveStatic(res, path);
       }
@@ -175,6 +230,26 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
           }
           const fresh = await store.getVenture(venture.id);
           return sendJson(res, 200, { reply: result.text, dashboardChanged: result.dashboardChanged, venture: fresh });
+        }
+
+        // §23 — Connecteur universel : import CSV du P&L, avec provenance et heure de sync.
+        const mCsv = path.match(/^\/api\/ventures\/([^/]+)\/import\/csv$/);
+        if (mCsv) {
+          const venture = await store.getVenture(mCsv[1]);
+          if (!venture) return sendJson(res, 404, { error: 'venture inconnu' });
+          if (!body.csv?.trim()) return sendJson(res, 400, { error: 'csv requis' });
+          const { entries, errors } = parseCsvPnl(body.csv);
+          if (!entries.length) return sendJson(res, 400, { error: 'aucune ligne valide — format attendu : date, montant, note' });
+          const syncedAt = new Date().toISOString();
+          venture.pnlLog = venture.pnlLog || [];
+          venture.pnlLog.push(...entries.map(e => ({ ...e, source: 'csv', syncedAt })));
+          venture.pnlLog.sort((a, b) => a.at.localeCompare(b.at));
+          venture.sources = (venture.sources || []).filter(s => s.type !== 'csv');
+          venture.sources.push({ type: 'csv', lastSyncAt: syncedAt, entries: entries.length });
+          if (!venture.views.includes('pnl')) venture.views.push('pnl');
+          await store.upsertVenture(venture);
+          await store.logActivity(venture.id, { agent: 'Connecteur CSV', action: `${entries.length} entrée(s) P&L importées${errors.length ? ` · ${errors.length} ligne(s) ignorées` : ''}` });
+          return sendJson(res, 200, { ok: true, imported: entries.length, ignored: errors.length, venture });
         }
 
         // Tasks (§10/§13) : cocher / décocher.

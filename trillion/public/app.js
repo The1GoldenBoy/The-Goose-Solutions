@@ -17,6 +17,8 @@ let state = {
   current: null,        // venture actif
   memory: null,
   messages: [],
+  activity: [],         // §22 — Activity Log des agents
+  brief: null,          // §21 — Morning Brief du jour
   interview: null,      // {questions, index, answers} — Chemin B en cours
   pendingLaunch: null,  // {masterplan, analysis} en attente de Launch Dashboard
   voiceReply: false,
@@ -253,8 +255,8 @@ async function playBuild(venture, steps) {
 
 // ---------- Dashboard ----------
 async function openVenture(id) {
-  const { venture, memory, messages } = await api(`/api/ventures/${id}`);
-  state.current = venture; state.memory = memory; state.messages = messages;
+  const { venture, memory, messages, activity } = await api(`/api/ventures/${id}`);
+  state.current = venture; state.memory = memory; state.messages = messages; state.activity = activity || [];
   renderSidebar();
   renderDashboard();
   show('#screen-dashboard');
@@ -398,6 +400,29 @@ function buildPanel(venture, viewId, skeleton = false) {
         panel.append(el('div', 'pnl-big pos', '— $'));
         panel.append(el('div', 'empty', `Dis tes résultats à Trillion (« +500$ sur le trade Tesla », « perte de 200$ ») et la courbe s'allume.`));
       }
+      // §23 — jamais de chiffre sans origine : provenance + heure de sync.
+      const log = venture.pnlLog || [];
+      const said = log.filter(e => e.source !== 'csv').length;
+      const csvSrc = (venture.sources || []).find(s => s.type === 'csv');
+      const provenance = [
+        said ? `dit à Trillion (${said})` : null,
+        csvSrc ? `import CSV (${csvSrc.entries}, sync ${new Date(csvSrc.lastSyncAt).toLocaleDateString('fr-CA')})` : null,
+      ].filter(Boolean).join(' · ');
+      if (provenance) panel.append(el('div', 'line src-line', `<small>Sources : ${esc(provenance)}</small>`));
+      // §23 — connecteur universel : importer un CSV (date, montant, note).
+      const importBtn = el('button', 'ghost-btn mini', 'Importer CSV');
+      const fileInput = Object.assign(el('input'), { type: 'file', accept: '.csv,text/csv', hidden: true });
+      importBtn.onclick = () => fileInput.click();
+      fileInput.onchange = async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        try {
+          const r = await api(`/api/ventures/${venture.id}/import/csv`, { method: 'POST', body: { csv: await file.text() } });
+          toast(`✦ ${r.imported} entrée(s) importées${r.ignored ? ` · ${r.ignored} ignorée(s)` : ''}`);
+          await openVenture(venture.id);
+        } catch (e) { toast(e.message); }
+      };
+      panel.append(importBtn, fileInput);
       break;
     }
     case 'performance':
@@ -414,11 +439,18 @@ function buildPanel(venture, viewId, skeleton = false) {
       const canvas = el('canvas', 'memory-canvas');
       panel.append(canvas);
       requestAnimationFrame(() => drawMemoryGraph(canvas, venture, mem));
-      const entries = [...mem.facts.map(f => ({ ...f, kind: 'fait' })), ...mem.decisions.map(d => ({ ...d, kind: 'décision' }))]
-        .sort((x, y) => x.at.localeCompare(y.at)).slice(-4);
-      panel.append(...entries.map(e => el('div', 'line',
+      const entries = [
+        ...mem.facts.map(f => ({ ...f, kind: 'fait' })),
+        ...mem.decisions.map(d => ({ ...d, kind: d.revokedAt ? 'décision · révoquée' : 'décision' })),
+        ...(mem.lessons || []).map(l => ({ ...l, kind: 'leçon ⟁' })),
+      ].sort((x, y) => x.at.localeCompare(y.at)).slice(-5);
+      panel.append(...entries.map(e => el('div', 'line' + (e.revokedAt ? ' revoked' : ''),
         `<small>${new Date(e.at).toLocaleDateString('fr-CA')} · ${e.kind}</small><br/>${esc(e.text.slice(0, 110))}`)));
       panel.append(el('div', 'memory-tagline', '« Trillion ne répond pas seulement. Elle se souvient. »'));
+      // §24/§28 — export total : ta mémoire t'appartient, en Markdown ouvert.
+      const exportBtn = el('button', 'ghost-btn mini', 'Exporter (Markdown)');
+      exportBtn.onclick = () => { window.open(`/api/ventures/${venture.id}/export`, '_blank'); };
+      panel.append(exportBtn);
       break;
     }
     case 'tasks': {
@@ -447,9 +479,19 @@ function buildPanel(venture, viewId, skeleton = false) {
       panel.append(...lines(a.revenueModel || [], r => `✎ ${esc(r)}`));
       panel.append(el('div', 'empty', 'Colle tes scripts de vente et réponses aux objections à Trillion — elle les garde ici.'));
       break;
-    case 'agents':
-      panel.append(...lines(a.suggestedAgents || [], s => `⟠ ${esc(s)} <small>· prêt à assigner</small>`));
+    case 'agents': {
+      // §22 — Reporter et Sentinelle travaillent seuls ; chaque action est visible ici.
+      const activity = (state.activity || []).slice(-6).reverse();
+      if (activity.length) {
+        panel.append(el('div', 'line', `<small>Activity Log — rien ne se fait en cachette</small>`));
+        panel.append(...activity.map(x => el('div', 'line activity',
+          `<small>${new Date(x.at).toLocaleDateString('fr-CA')} · <strong>${esc(x.agent)}</strong></small><br/>${esc(x.action.slice(0, 120))}`)));
+      } else {
+        panel.append(el('div', 'empty', 'Reporter dépose le rapport hebdo chaque vendredi ; la Sentinelle surveille tes seuils. Leurs actions apparaîtront ici.'));
+      }
+      panel.append(...(a.suggestedAgents || []).map(s => el('div', 'line', `⟠ ${esc(s)} <small>· prêt à assigner</small>`)));
       break;
+    }
     default:
       panel.append(el('div', 'empty',
         `Vue ${meta.name} en place (${period}). Alimente-la en parlant à Trillion — ` +
@@ -510,8 +552,8 @@ function buildCommPanel(venture) {
       speak(r.reply);
       if (r.dashboardChanged) {
         // §6 : Trillion modifie le dashboard en temps réel
-        const { venture: fresh, memory, messages } = await api(`/api/ventures/${venture.id}`);
-        state.current = fresh; state.memory = memory; state.messages = messages;
+        const { venture: fresh, memory, messages, activity } = await api(`/api/ventures/${venture.id}`);
+        state.current = fresh; state.memory = memory; state.messages = messages; state.activity = activity || [];
         renderDashboard();
         toast('✦ Cockpit mis à jour par Trillion');
       } else {
@@ -537,6 +579,20 @@ async function showEmpire() {
   renderSidebar();
   const grid = $('#empire-grid');
   grid.innerHTML = '';
+
+  // §21 — Morning Brief : Trillion parle la première (une fois par jour, silence intelligent sinon).
+  const brief = state.brief;
+  if (brief && !brief.silent && localStorage.getItem('trillion-brief-seen') !== brief.date) {
+    const card = el('div', 'panel glass large brief');
+    card.append(el('h3', null, '<span class="glyph">☼</span> Morning Brief'));
+    card.append(el('div', 'line', esc(brief.greeting)));
+    for (const line of brief.lines) card.append(el('div', 'line', esc(line)));
+    card.append(el('div', 'line brief-priority', esc(brief.priority)));
+    const ok = el('button', 'ghost-btn mini', 'Compris ✦');
+    ok.onclick = () => { localStorage.setItem('trillion-brief-seen', brief.date); card.remove(); };
+    card.append(ok);
+    grid.append(card);
+  }
 
   const health = el('div', 'panel glass');
   health.append(el('h3', null, '<span class="glyph">❖</span> Santé globale'));
@@ -609,6 +665,8 @@ wireMic($('#welcome-mic'), $('#welcome-input'));
       : 'Ajoute ANTHROPIC_API_KEY côté serveur pour que Trillion réponde à tout en profondeur';
   } catch { /* status non bloquant */ }
   await loadVentures();
+  // §21 : les agents tournent en passant, puis Trillion prépare son Morning Brief.
+  try { state.brief = (await api('/api/brief')).brief; } catch { state.brief = null; }
   // §15 : la vue Home représente tout l'empire.
   if (state.ventures.length) await showEmpire();
   else showWelcome();
