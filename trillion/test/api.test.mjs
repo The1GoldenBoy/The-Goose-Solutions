@@ -100,9 +100,12 @@ test('flux complet : analyse → Launch → cockpit → chat → commande → m�
   assert.equal(empire.data.totalPnlMonth, 300);
   assert.ok(empire.data.recommendation.length > 5);
 
-  // Interview (Chemin B)
+  // Interview (Chemin B) — §25 : trois questions au lieu de six, trois de plus pour aiguiser
   const interview = await call(base, 'GET', '/api/interview');
-  assert.ok(interview.data.length >= 5);
+  assert.equal(interview.data.length, 3);
+  const deep = await call(base, 'GET', '/api/interview?deep=1');
+  assert.equal(deep.data.length, 3);
+  assert.notEqual(deep.data[0].key, interview.data[0].key);
   const draft = await call(base, 'POST', '/api/ventures/draft', {
     answers: { vision: 'Boutique en ligne de jouets pour chiens', money: 'vente en ligne', goal: '10 000$/mois' },
   });

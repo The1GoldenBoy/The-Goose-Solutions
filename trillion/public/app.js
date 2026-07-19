@@ -22,6 +22,8 @@ let state = {
   interview: null,      // {questions, index, answers} — Chemin B en cours
   pendingLaunch: null,  // {masterplan, analysis} en attente de Launch Dashboard
   voiceReply: false,
+  voice: 'browser',     // §27 — 'signature' quand ELEVENLABS_API_KEY est branchée côté serveur
+  ttcStart: null,       // §25 — chrono time-to-cockpit (première interaction → Dashboard ready.)
   viewCatalog: {},
 };
 
@@ -89,12 +91,33 @@ function makeRecognizer(onText) {
   return rec;
 }
 
-function speak(text) {
-  if (!state.voiceReply || !window.speechSynthesis) return;
-  const u = new SpeechSynthesisUtterance(text.replace(/[✦◈◉⬖⬡◬✧❖☰⟁◭⬢▣∿⟠🖋]/g, ''));
+function browserSpeak(text) {
+  if (!window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(text.replace(/[✦◈◉⬖⬡◬✧❖☰⟁◭⬢▣∿⟠🖋⏳⏏☼]/g, ''));
   u.lang = 'fr-CA'; u.rate = 1.02; u.pitch = 1.05;
   speechSynthesis.cancel();
   speechSynthesis.speak(u);
+}
+
+// §27 — la voix signature : une seule voix officielle, fallback navigateur silencieux.
+async function speak(text) {
+  if (!state.voiceReply) return;
+  if (state.voice === 'signature') {
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (res.ok && res.status === 200) {
+        const url = URL.createObjectURL(await res.blob());
+        const audio = new Audio(url);
+        audio.onended = () => URL.revokeObjectURL(url);
+        await audio.play();
+        return;
+      }
+    } catch { /* fallback silencieux */ }
+  }
+  browserSpeak(text);
 }
 
 function wireMic(btn, textarea) {
@@ -207,11 +230,13 @@ async function launchPending() {
 }
 
 // ---------- Chemin B : Create a masterplan — conversation, pas formulaire (§5) ----------
+// §25 : trois questions au lieu de six ; trois de plus, optionnelles, pour aiguiser.
 async function startInterview() {
+  startTtc();
   const questions = await api('/api/interview');
-  state.interview = { questions, index: 0, answers: {} };
+  state.interview = { questions, index: 0, answers: {}, deepDone: false };
   $('#welcome-input').placeholder = 'Enter your masterplan';
-  welcomeSay('Parfait — on le bâtit ensemble. ' + questions[0].q);
+  welcomeSay('Parfait — on le bâtit ensemble. Trois questions, pas plus. ' + questions[0].q);
 }
 
 async function interviewAnswer(text) {
@@ -225,14 +250,29 @@ async function interviewAnswer(text) {
   // Interview terminée → Trillion assemble le Masterplan et propose le cockpit
   try {
     const { masterplan, analysis } = await api('/api/ventures/draft', { method: 'POST', body: { answers: it.answers } });
-    state.interview = null;
     state.pendingLaunch = { masterplan, analysis };
     const views = analysis.recommendedViews.map(v => `- ${state.viewCatalog[v]?.name || v}`).join('\n');
+    const extras = el('div');
     const btn = el('button', 'launch-btn', 'Launch Dashboard');
     btn.onclick = launchPending;
-    welcomeSay(`Voici ton Masterplan, assemblé à partir de ce que tu m'as raconté :\n\n${masterplan.slice(0, 700)}${masterplan.length > 700 ? '…' : ''}\n\nI recommend this custom dashboard:\n${views}`, btn);
+    extras.append(btn);
+    if (!it.deepDone) {
+      // §25 — l'aiguisage est optionnel : le wow n'attend pas les six questions.
+      const deepBtn = el('button', 'ghost-btn mini', 'Aiguise-le — 3 questions de plus ✧');
+      deepBtn.onclick = async () => {
+        const deep = await api('/api/interview?deep=1');
+        state.interview = { questions: deep, index: 0, answers: it.answers, deepDone: true };
+        welcomeSay('On l’aiguise. ' + deep[0].q);
+      };
+      extras.append(deepBtn);
+    }
+    state.interview = null;
+    welcomeSay(`Voici ton Masterplan, assemblé à partir de ce que tu m'as raconté :\n\n${masterplan.slice(0, 700)}${masterplan.length > 700 ? '…' : ''}\n\nI recommend this custom dashboard:\n${views}`, extras);
   } catch (e) { toast(e.message); }
 }
+
+// §25 — time-to-cockpit : le chrono part à la première interaction, pas avant.
+function startTtc() { if (!state.ttcStart) state.ttcStart = Date.now(); }
 
 // ---------- §6 : le dashboard se bâtit sous les yeux ----------
 async function playBuild(venture, steps) {
@@ -249,6 +289,13 @@ async function playBuild(venture, steps) {
     if (step.view) grid.append(buildPanel(venture, step.view, true));
     await new Promise(r => setTimeout(r, i === steps.length - 1 ? 900 : 620));
     line.classList.remove('now'); line.classList.add('done');
+  }
+  // §25/§30 — time-to-cockpit : mesuré pour vrai, envoyé au serveur, montré à l'utilisateur.
+  if (state.ttcStart) {
+    const ms = Date.now() - state.ttcStart;
+    state.ttcStart = null;
+    api('/api/metrics', { method: 'POST', body: { kind: 'time_to_cockpit', ms } }).catch(() => {});
+    toast(`✦ Dashboard ready. — cockpit construit en ${Math.round(ms / 1000)} s`);
   }
   await openVenture(venture.id);
 }
@@ -634,6 +681,49 @@ async function showEmpire() {
 }
 $('#empire-btn').onclick = showEmpire;
 
+// ---------- §29-30 : Founder Mode — les chiffres qui disent la vérité ----------
+async function showFounder() {
+  const k = await api('/api/kpis');
+  state.current = null;
+  renderSidebar();
+  const grid = $('#founder-grid');
+  grid.innerHTML = '';
+  const fmtS = (ms) => ms == null ? '—' : `${Math.round(ms / 1000)} s`;
+  const kpi = (icon, title, value, target, ok) => {
+    const p = el('div', 'panel glass');
+    p.append(el('h3', null, `<span class="glyph">${icon}</span> ${title}`));
+    p.append(el('div', `kpi-num ${ok === null ? '' : ok ? 'pos' : 'neg'}`, esc(value)));
+    p.append(el('div', 'line', `<small>${esc(target)}</small>`));
+    if (ok !== null) p.append(el('div', 'line', ok ? '<span class="health-ok">● cible atteinte</span>' : '<span class="health-attention">● à travailler</span>'));
+    return p;
+  };
+
+  const t = k.timeToCockpit;
+  grid.append(kpi('⏱', 'Time-to-cockpit', fmtS(t.medianMs),
+    `Cible : < 2 min de l'arrivée à « Dashboard ready. » · ${t.samples} mesure(s)`,
+    t.medianMs == null ? null : t.medianMs < t.targetMs));
+
+  const c = k.conversationShare;
+  grid.append(kpi('✦', 'Modifications par conversation', c.pct == null ? '—' : `${c.pct} %`,
+    `Cible : > ${c.target} % — LA mesure du §19 · ${c.total} modification(s) au total`,
+    c.pct == null ? null : c.pct > c.target));
+
+  grid.append(kpi('❖', 'Souvenirs cités (7 jours)', String(k.memoryCited.count7d),
+    `Cible : ≥ ${k.memoryCited.target} / semaine — la preuve qu'elle se souvient`,
+    k.memoryCited.count7d >= k.memoryCited.target));
+
+  grid.append(kpi('⟠', 'Actions d’agents (7 jours)', String(k.agentActions7d),
+    `Reporter + Sentinelle + connecteurs · ${k.ventures} venture(s) sous garde`, null));
+
+  const trust = el('div', 'panel glass large');
+  trust.append(el('h3', null, '<span class="glyph">♛</span> La promesse'));
+  trust.append(el('div', 'line', 'Tes Masterplans, ta mémoire, tes chiffres : à toi. Trillion travaille pour toi, pas l’inverse.'));
+  trust.append(el('div', 'line', `<small>Local d'abord — fichiers plats + Vault Markdown exportable. Chaque chiffre ci-dessus est mesuré, jamais inventé.</small>`));
+  grid.append(trust);
+
+  show('#screen-founder');
+}
+
 // ---------- Période ----------
 $('#period-picker').addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-period]');
@@ -659,6 +749,7 @@ wireMic($('#welcome-mic'), $('#welcome-input'));
   try {
     const status = await api('/api/status');
     state.viewCatalog = status.viewCatalog || {};
+    state.voice = status.voice || 'browser'; // §27
     $('#brain-pill').textContent = status.claude ? '✦ Claude connectée' : '◌ moteur local';
     $('#brain-pill').title = status.claude
       ? 'Trillion pense avec Claude (claude-opus-4-8)'
@@ -691,4 +782,8 @@ document.querySelectorAll('#universe-chips .chip').forEach(chip => {
 
 $('#rail-home')?.addEventListener('click', () => showEmpire());
 $('#rail-new')?.addEventListener('click', () => showWelcome());
-$('#rail-crown')?.addEventListener('click', () => toast('✦ Founder Mode — actif'));
+$('#rail-crown')?.addEventListener('click', () => showFounder());
+
+// §25 — le chrono time-to-cockpit part à la première interaction d'onboarding.
+$('#welcome-input').addEventListener('input', startTtc, { once: false });
+$('#universe-chips').addEventListener('click', startTtc);
