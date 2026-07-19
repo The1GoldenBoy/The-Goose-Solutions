@@ -4,14 +4,14 @@
 
 Trillion est un command center IA où chaque entreprise/projet actif possède son propre cockpit personnalisé. L'utilisateur ne configure pas le software — **il parle à Trillion, et Trillion configure le software autour de l'entreprise** (§19 du Master Plan Trillion).
 
-Implémentation complète du **Master Plan Trillion** (sections 1 à 20). Node ≥ 18, zéro dépendance obligatoire.
+Implémentation complète du **Master Plan Trillion** (sections 1 à 20) + le cœur de la **V2** (§21-24 : Trillion proactive, agents Reporter/Sentinelle, connecteur CSV, mémoire corrigible). Node ≥ 18, zéro dépendance obligatoire.
 
 ## Démarrage
 
 ```bash
 cd trillion
 npm start                 # → http://127.0.0.1:8888
-npm test                  # 9 tests
+npm test                  # 16 tests
 ```
 
 **Cerveau de Trillion** : moteur local déterministe inclus (fonctionne hors ligne). Pour que Trillion réponde à *tout* en profondeur (§9) :
@@ -45,6 +45,10 @@ Le badge dans la barre de gauche indique le moteur actif (`✦ Claude connectée
 | 16 | Les vues du bas = **views du dashboard actif**, différentes par entreprise | grille du cockpit |
 | 17-18 | Wording final verrouillé : Trillion, Communication Center, Talk with Trillion, Send, Launch, +, Create a masterplan, Living Memory, Active Ventures, Views, Empire Overview | partout |
 | 19 | « L'utilisateur ne configure pas le software. Il parle à Trillion. » | tout le produit |
+| 21 | **Trillion proactive** : Morning Brief à l'ouverture (une carte, 15 s de lecture), alertes de vérité (P&L négatif 3 jours de suite, tâche bloquée > 3 jours), silence intelligent, coupure **par conversation** (« plus d'alertes le weekend ») | `lib/proactive.mjs` + carte Empire |
+| 22 | Agents qui **travaillent** : le **Reporter** dépose le rapport hebdo (vendredi) dans le Vault + Living Memory ; la **Sentinelle** surveille les seuils. Chaque action est visible dans l'**Activity Log** (vue Agents) — rien ne se fait en cachette | `runAgents()` + `activity/*.jsonl` |
+| 23 | **Connecteur universel CSV** (date, montant, note) avec règle de vérité : chaque chiffre affiche sa provenance — « dit à Trillion » ou « import CSV, sync … ». Débrancher se fait par conversation (« Débranche le CSV ») | vue P&L + `/import/csv` |
+| 24 | **La mémoire qui se corrige** : « Cette décision du 12 avril n'est plus vraie » → archivée avec date de révocation (jamais de suppression silencieuse) ; « Leçon : … » → `Lessons.md` du Vault, ressortie au bon moment ; **export total** en Markdown ouvert | `revokeDecision()` + `/export` |
 
 ## API
 
@@ -56,10 +60,13 @@ POST /api/ventures/analyze              {masterplan} → analyse + vues recomman
 GET  /api/interview                     questions du Chemin B
 POST /api/ventures/draft                {answers} → Masterplan assemblé par Trillion
 POST /api/ventures                      {masterplan} → Launch Dashboard (+ étapes du build)
-GET  /api/ventures/:id                  venture + mémoire + messages
+GET  /api/ventures/:id                  venture + mémoire + messages + activity log
 POST /api/ventures/:id/chat             {text, voice?, speak?} → réponse de Trillion
 POST /api/ventures/:id/tasks/:tid/toggle
 DELETE /api/ventures/:id
+GET  /api/brief                         Morning Brief (§21) — fait aussi tourner Reporter + Sentinelle
+POST /api/ventures/:id/import/csv       {csv} → P&L avec provenance + heure de sync (§23)
+GET  /api/ventures/:id/export           export total en Markdown (§24)
 ```
 
 ## Image de Trillion

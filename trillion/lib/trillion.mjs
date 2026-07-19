@@ -128,6 +128,48 @@ export function parsePnlEntry(text) {
   return { amount: negative ? -amount : amount, note: text.trim().slice(0, 120) };
 }
 
+// §24 — « Leçon : ne jamais trader le dimanche soir » → Lessons/ du Vault + mémoire.
+export function parseLesson(text) {
+  const m = text.match(/^\s*le[çc]on\s*[:\-—]\s*(.+)/i);
+  return m ? m[1].trim() : null;
+}
+
+// §21 — les alertes se coupent par conversation, jamais par panneau de réglages.
+export function parseAlertSetting(text) {
+  const lower = text.toLowerCase().replace(/’/g, "'");
+  if (!/alerte|notification/.test(lower)) return null;
+  if (/(plus|pas|arrête|coupe|stop).*(weekend|week-end|fin de semaine)/.test(lower)) {
+    return { alerts: { quietWeekends: true }, reply: 'Compris — plus d’alertes le weekend. Je garde le silence, sauf si quelque chose devient critique.' };
+  }
+  if (/(réactive|remets|remet|reprends|réveille)/.test(lower)) {
+    return { alerts: { enabled: true, quietWeekends: false }, reply: 'Les alertes sont réactivées. Je reprends la garde, sept jours sur sept.' };
+  }
+  if (/(plus d'alertes|pas d'alertes|coupe les alertes|arrête les alertes|stop les alertes)/.test(lower)) {
+    return { alerts: { enabled: false }, reply: 'D’accord, je coupe les alertes. Je ne parlerai que si quelque chose devient vraiment critique — c’est ma seule exception.' };
+  }
+  return null;
+}
+
+// §24 — « Trillion, cette décision du 12 avril n'est plus vraie » → révocation datée.
+const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+export function parseMemoryRevoke(text) {
+  const lower = text.toLowerCase().replace(/’/g, "'");
+  if (!/(n'est plus (vraie?|valide)|ne tient plus|annule (cette|la|ma) décision|révoque)/.test(lower)) return null;
+  const revoke = {};
+  const md = lower.match(/du\s+(\d{1,2})(?:er)?\s+([a-zéûô]+)/);
+  if (md && MONTHS_FR.includes(md[2])) revoke.day = Number(md[1]), revoke.month = MONTHS_FR.indexOf(md[2]);
+  const quote = text.match(/[«"]([^»"]{4,})[»"]/);
+  if (quote) revoke.quote = quote[1].trim();
+  return revoke;
+}
+
+// §23 — débrancher une source se fait aussi par conversation.
+export function parseSourceDisconnect(text) {
+  const lower = text.toLowerCase();
+  if (/(débranche|debranche|déconnecte|enlève|retire).*(csv|l'import|import)/.test(lower)) return { source: 'csv' };
+  return null;
+}
+
 // §10 — Create a task : transforme la discussion en tâche suivable.
 export function parseTaskCommand(text) {
   const m = text.match(/(?:create a task|crée(?:r)? une tâche|ajoute une tâche|nouvelle tâche)\s*[:\-—]?\s*(.*)/i);
@@ -209,7 +251,7 @@ export function localAnswer(message, ctx) {
   const a = venture?.analysis || {};
 
   if (/pourquoi/.test(lower)) {
-    const decisions = memory?.decisions?.slice(-3) || [];
+    const decisions = (memory?.decisions || []).filter(d => !d.revokedAt).slice(-3);
     const facts = memory?.facts?.slice(0, 2) || [];
     if (decisions.length || facts.length) {
       const parts = ['Voici ce que ma mémoire me dit :'];
@@ -222,12 +264,14 @@ export function localAnswer(message, ctx) {
   if (/(prochaine action|next action|what should i do|quoi faire|par où)/.test(lower)) {
     const obj = a.objectives?.[0];
     const risk = a.risks?.[0];
+    const lesson = memory?.lessons?.at(-1); // §24 — la Vigie ressort la leçon au bon moment
     return [
       `Pour ${venture.name}, voici ce que je recommande maintenant :`,
       obj ? `1. Avance sur ton objectif : ${obj}` : '1. Clarifie ton objectif principal — dis-le-moi et je le grave en mémoire.',
       risk ? `2. Garde un œil sur ce risque : ${risk}` : '2. Vérifie tes chiffres de la semaine dans la vue Performance.',
       '3. Dis-moi ce que tu as accompli et je mets la mémoire à jour.',
-    ].join('\n');
+      lesson ? `⟁ Et rappelle-toi ta leçon du ${dateFR(lesson.at)} : « ${lesson.text} »` : null,
+    ].filter(Boolean).join('\n');
   }
 
   if (/(risque|risk)/.test(lower)) {
@@ -281,7 +325,8 @@ function systemPrompt(ctx) {
   const a = venture?.analysis || {};
   const memLines = [
     ...(memory?.facts || []).map(f => `[${dateFR(f.at)}] FAIT (${f.source}): ${f.text}`),
-    ...(memory?.decisions || []).map(d => `[${dateFR(d.at)}] DÉCISION: ${d.text}`),
+    ...(memory?.decisions || []).map(d => `[${dateFR(d.at)}] DÉCISION${d.revokedAt ? ` (RÉVOQUÉE le ${dateFR(d.revokedAt)} — ne plus s'y fier, mais citable comme historique)` : ''}: ${d.text}`),
+    ...(memory?.lessons || []).map(l => `[${dateFR(l.at)}] LEÇON (à ressortir quand une décision la contredit): ${l.text}`),
   ].slice(-40).join('\n');
   return [
     'Tu es Trillion — la présence intelligente vivante d’un command center premium. Élégante, calme, puissante, chaleureuse et directe.',
@@ -328,7 +373,56 @@ export async function respond(message, ctx, history = []) {
     notes.push('🖋 Gravé dans la mémoire vivante.');
   }
 
+  // §21 — réglage des alertes par conversation (« plus d'alertes le weekend »)
+  const alertSetting = parseAlertSetting(message);
+  if (alertSetting) {
+    await ctx.store.saveSettings({ alerts: alertSetting.alerts });
+    return { text: [alertSetting.reply, ...notes].join('\n'), dashboardChanged: false };
+  }
+
   if (ctx.venture) {
+    // §24 — Leçon : gravée en mémoire + Lessons.md du Vault, la Vigie la ressortira.
+    const lesson = parseLesson(message);
+    if (lesson) {
+      await ctx.store.rememberLesson(ctx.venture.id, lesson);
+      const safeName = ctx.venture.name.replace(/[/\\:]/g, '-');
+      await ctx.store.appendVaultNote(`Ventures/${safeName}/Lessons.md`, `- ${new Date().toISOString().slice(0, 10)} — ${lesson}`);
+      return { text: [`⟁ Leçon gravée : « ${lesson} ». Je te la ressortirai au bon moment.`, ...notes].join('\n'), dashboardChanged: false };
+    }
+
+    // §24 — la mémoire qui se corrige : révoquer une décision, jamais l'effacer.
+    const revoke = parseMemoryRevoke(message);
+    if (revoke) {
+      const match = (d) => {
+        const at = new Date(d.at);
+        if (revoke.quote) return d.text.toLowerCase().includes(revoke.quote.toLowerCase());
+        if (revoke.day != null) return at.getDate() === revoke.day && at.getMonth() === revoke.month;
+        return true; // sans précision : la décision la plus récente
+      };
+      const target = await ctx.store.revokeDecision(ctx.venture.id, match);
+      if (!target) {
+        return { text: 'Je ne retrouve pas cette décision dans ma mémoire. Cite-moi sa date (« du 12 avril ») ou un bout de son texte entre « guillemets ».', dashboardChanged: false };
+      }
+      const safeName = ctx.venture.name.replace(/[/\\:]/g, '-');
+      await ctx.store.appendVaultNote(`Ventures/${safeName}/Decisions.md`, `- ${new Date().toISOString().slice(0, 10)} — RÉVOQUÉE : « ${target.text.slice(0, 120)} » (décision du ${dateFR(target.at)})`);
+      ctx.memory = await ctx.store.memory(ctx.venture.id);
+      return {
+        text: [`🖋 C'est corrigé. La décision du ${dateFR(target.at)} — « ${target.text.slice(0, 100)} » — est archivée comme révoquée aujourd'hui. L'historique reste, la vérité change.`, ...notes].join('\n'),
+        dashboardChanged: false,
+      };
+    }
+
+    // §23 — débrancher une source de données par conversation.
+    const disconnect = parseSourceDisconnect(message);
+    if (disconnect) {
+      const before = (ctx.venture.pnlLog || []).length;
+      ctx.venture.pnlLog = (ctx.venture.pnlLog || []).filter(e => e.source !== disconnect.source);
+      ctx.venture.sources = (ctx.venture.sources || []).filter(s => s.type !== disconnect.source);
+      await ctx.store.upsertVenture(ctx.venture);
+      const removed = before - ctx.venture.pnlLog.length;
+      return { text: [`⏏ Import CSV débranché — ${removed} entrée(s) retirées du P&L. Ce que tu m'as dit en conversation reste intact.`, ...notes].join('\n'), dashboardChanged: true };
+    }
+
     // §10 — quick actions à vrai but
     if (/build a report|bâtis un rapport|fais(-| )moi un rapport/.test(lower)) {
       return { text: [buildReport(ctx), ...notes].join('\n\n'), dashboardChanged: false, report: true };
@@ -361,7 +455,8 @@ export async function respond(message, ctx, history = []) {
     const pnl = parsePnlEntry(message);
     if (pnl) {
       ctx.venture.pnlLog = ctx.venture.pnlLog || [];
-      ctx.venture.pnlLog.push({ at: new Date().toISOString(), ...pnl });
+      // §23 — provenance : un chiffre dit en conversation est marqué comme tel.
+      ctx.venture.pnlLog.push({ at: new Date().toISOString(), source: 'conversation', ...pnl });
       if (!ctx.venture.views.includes('pnl')) ctx.venture.views.push('pnl');
       await ctx.store.upsertVenture(ctx.venture);
       const p = pnlForPeriod(ctx.venture, ctx.venture.period || 'week');
