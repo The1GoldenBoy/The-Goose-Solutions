@@ -184,6 +184,27 @@ main { flex: 1; overflow-y: auto; padding: 26px 30px; }
   clip-path: polygon(50% 0%, 66% 86%, 50% 100%, 34% 86%);
   background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(192,132,252,0.15) 60%, transparent);
 }
+/* Cristal de la référence : image générée si présente, sinon SVG fidèle */
+#crystal-svg { position: absolute; inset: 0; width: 100%; height: 100%; filter: drop-shadow(0 0 30px rgba(168,85,247,0.7)); animation: breathe 5s ease-in-out infinite; }
+#crystal-img {
+  position: absolute; inset: -12%; width: 124%; height: 124%; object-fit: contain; z-index: 2;
+  filter: drop-shadow(0 0 34px rgba(168,85,247,0.55));
+  animation: breathe 6s ease-in-out infinite;
+}
+.presence.has-img #crystal-svg, .presence.has-img .swirl, .presence.has-img .presence-ring { display: none; }
+.swirl {
+  position: absolute; inset: -26%; border-radius: 50%; pointer-events: none;
+  filter: blur(16px); opacity: .55;
+}
+.swirl.s1 {
+  background: conic-gradient(from 20deg, transparent 0 12%, rgba(168,85,247,0.5) 20%, transparent 34%, rgba(217,70,239,0.35) 58%, transparent 72%);
+  animation: spin 22s linear infinite;
+}
+.swirl.s2 {
+  inset: -36%;
+  background: conic-gradient(from 200deg, transparent 0 18%, rgba(139,92,246,0.35) 30%, transparent 46%, rgba(232,121,249,0.25) 70%, transparent 84%);
+  animation: spin 34s linear infinite reverse;
+}
 .presence-ring { position: absolute; border-radius: 50%; border: 1px solid; }
 .presence-ring.r1 { width: 108%; height: 30%; bottom: -4%; border-color: rgba(168,85,247,0.55); border-style: dashed; transform: rotateX(70deg); }
 .presence-ring.r2 { width: 130%; height: 36%; bottom: -8%; border-color: rgba(232,121,249,0.3); box-shadow: 0 0 30px rgba(168,85,247,0.35); transform: rotateX(70deg); }

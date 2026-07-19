@@ -67,9 +67,56 @@
             <h1 class="presence-title">TRILLION</h1>
             <div class="presence-wrap">
               <div class="presence" id="presence">
+                <div class="swirl s1"></div>
+                <div class="swirl s2"></div>
+                <img id="crystal-img" src="/assets/crystal.png" alt=""
+                     onload="document.getElementById('presence').classList.add('has-img')"
+                     onerror="this.remove()" />
+                <svg id="crystal-svg" viewBox="0 0 200 300" aria-hidden="true">
+                  <defs>
+                    <filter id="cglow" x="-60%" y="-60%" width="220%" height="220%">
+                      <feGaussianBlur stdDeviation="3.2" result="b"/>
+                      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                    <filter id="cglow-soft" x="-80%" y="-80%" width="260%" height="260%">
+                      <feGaussianBlur stdDeviation="9"/>
+                    </filter>
+                    <linearGradient id="cface" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#f3e8ff" stop-opacity=".9"/>
+                      <stop offset=".45" stop-color="#a855f7" stop-opacity=".55"/>
+                      <stop offset="1" stop-color="#4c1d95" stop-opacity=".75"/>
+                    </linearGradient>
+                    <linearGradient id="cface2" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stop-color="#c084fc" stop-opacity=".5"/>
+                      <stop offset="1" stop-color="#2e1065" stop-opacity=".8"/>
+                    </linearGradient>
+                    <radialGradient id="cburst">
+                      <stop offset="0" stop-color="#ffffff"/>
+                      <stop offset=".35" stop-color="#e9d5ff" stop-opacity=".85"/>
+                      <stop offset="1" stop-color="#a855f7" stop-opacity="0"/>
+                    </radialGradient>
+                  </defs>
+                  <!-- rubans d'énergie derrière le cristal -->
+                  <g filter="url(#cglow-soft)" opacity=".8">
+                    <path d="M30,190 C60,120 140,250 172,140" fill="none" stroke="#d946ef" stroke-width="5" opacity=".5"/>
+                    <path d="M22,120 C90,190 120,60 180,190" fill="none" stroke="#8b5cf6" stroke-width="4" opacity=".5"/>
+                  </g>
+                  <!-- faces translucides -->
+                  <polygon points="100,18 62,110 74,234 100,282" fill="url(#cface2)"/>
+                  <polygon points="100,18 138,110 126,234 100,282" fill="url(#cface2)" opacity=".85"/>
+                  <polygon points="100,18 80,112 100,282 120,112" fill="url(#cface)"/>
+                  <!-- arêtes wireframe lumineuses -->
+                  <g filter="url(#cglow)" stroke="#f3e8ff" stroke-width="1.6" fill="none" stroke-linejoin="round">
+                    <polygon points="100,18 62,110 74,234 100,282 126,234 138,110" stroke-opacity=".95"/>
+                    <path d="M100,18 L80,112 L100,282 M100,18 L120,112 L100,282" stroke-opacity=".8"/>
+                    <path d="M62,110 L80,112 M138,110 L120,112 M74,234 L100,282 M126,234 L100,282" stroke-opacity=".6"/>
+                  </g>
+                  <!-- jaillissement de lumière au sommet -->
+                  <circle cx="100" cy="18" r="26" fill="url(#cburst)"/>
+                  <circle cx="100" cy="282" r="16" fill="url(#cburst)" opacity=".8"/>
+                </svg>
                 <div class="presence-ring r1"></div>
                 <div class="presence-ring r2"></div>
-                <div class="presence-core"></div>
               </div>
             </div>
             <p class="presence-sub">Add a business. Give Trillion the Masterplan. She builds the cockpit.</p>
