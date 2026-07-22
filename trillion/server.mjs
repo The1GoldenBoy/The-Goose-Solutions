@@ -175,13 +175,14 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
     };
   }
 
-  const server = createServer(async (req, res) => {
+  // Handler nu : utilisé par le serveur Node natif ET par les fonctions serverless (Vercel).
+  const handler = async (req, res) => {
     try {
       const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
       const path = url.pathname;
 
       if (req.method === 'GET') {
-        if (path === '/healthz') return sendJson(res, 200, { ok: true, at: new Date().toISOString() });
+        if (path === '/healthz' || path === '/api/healthz') return sendJson(res, 200, { ok: true, at: new Date().toISOString() });
         if (path === '/api/status') {
           return sendJson(res, 200, {
             claude: await isClaudeAvailable(),
@@ -388,9 +389,10 @@ export async function createApp({ stateDir = resolve(__dirname, 'state') } = {})
       if (status >= 500) console.error('[trillion]', err);
       try { sendJson(res, status, { error: err.message }); } catch { /* déjà répondu */ }
     }
-  });
+  };
 
-  return { server, store, close: () => server.close() };
+  const server = createServer(handler);
+  return { server, store, handler, close: () => server.close() };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

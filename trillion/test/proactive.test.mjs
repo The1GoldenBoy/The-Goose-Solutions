@@ -83,12 +83,15 @@ test('Reporter : dépose le rapport hebdo une seule fois ; Sentinelle trace sans
   t.after(() => rm(dir, { recursive: true, force: true }));
   const store = new Store(dir);
   await store.init();
+  // Tout est ancré sur un vendredi FUTUR fixe — jamais sur l'horloge réelle,
+  // sinon le test dérive avec les jours qui passent.
+  const friday = new Date('2027-07-16T13:00:00Z'); // un vendredi
+  const before = (d) => new Date(friday - d).toISOString();
   await store.upsertVenture(fakeVenture({
-    pnlLog: [{ at: iso(2 * DAY), amount: 300 }],
-    tasks: [{ id: 't1', text: 'Vieille tâche', done: false, at: iso(6 * DAY) }],
+    createdAt: before(30 * DAY),
+    pnlLog: [{ at: before(2 * DAY), amount: 300 }],
+    tasks: [{ id: 't1', text: 'Vieille tâche', done: false, at: before(6 * DAY) }],
   }));
-
-  const friday = new Date('2026-07-17T13:00:00Z'); // un vendredi
   const deposited = await runReporter(store, friday);
   assert.equal(deposited.length, 1);
   const vaultPath = join(dir, 'vault', 'Trillion Memory Vault', deposited[0].path);
