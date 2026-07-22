@@ -1,6 +1,17 @@
 # Mettre Trillion en ligne (pour l'ouvrir sur iPhone)
 
-Trillion est un serveur Node natif, **sans dépendance obligatoire**. N'importe quel hébergeur Node ou Docker fonctionne. Voici le chemin le plus court.
+> **✦ Trillion est EN LIGNE : <https://trillion-command-center.vercel.app>**
+> Ouvre l'URL sur iPhone → **Partager** → **Sur l'écran d'accueil** : elle s'installe comme une app (icône cristal, plein écran).
+
+Trillion est un serveur Node natif, **sans dépendance obligatoire**. N'importe quel hébergeur Node ou Docker fonctionne.
+
+## Option 0 — Vercel (déployé, actif)
+
+Le déploiement vit dans le projet Vercel `trillion-command-center` (équipe *Max's projects*). Il n'envoie qu'un mini-bootstrap (`bootstrap.sh`) : le build clone ce repo public et récupère code + assets — **redéployer = relancer un déploiement, rien d'autre à uploader**. Côté code, `api/[[...slug]].mjs` sert toute l'API en une fonction serverless et `public/` part sur le CDN.
+
+⚠ **Mémoire éphémère** : sur Vercel l'état vit sur `/tmp` de la fonction — il persiste tant que l'instance est chaude mais peut se réinitialiser (redéploiement, instance froide). Parfait pour démontrer et utiliser Trillion ; pour une mémoire **permanente**, utilise Render avec un disque (Option 1) ou attends le branchement d'une vraie base.
+
+Les clés (`ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `STRIPE_API_KEY`) s'ajoutent dans **Vercel → Settings → Environment Variables** du projet, puis redéploie.
 
 ## Option 1 — Render (gratuit, recommandé)
 
